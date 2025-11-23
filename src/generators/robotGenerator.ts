@@ -8,7 +8,12 @@ import {
   generateTool,
   generateRobotHead,
   generateRobotTorso,
-  generateRobotLeg
+  generateRobotLeg,
+  generateBackTool,
+  generateHeadTool,
+  generateShoulderTool,
+  generateChestTool,
+  generateHipTool
 } from '../utils/components';
 
 export function generateRobot(): VoxelObjectData {
@@ -89,52 +94,77 @@ export function generateRobot(): VoxelObjectData {
   builder.addBox(leftArmX - 2, armY, -2, armWidth + 2, 2, 5, palette.detail);
   builder.addBox(rightArmX, armY, -2, armWidth + 2, 2, 5, palette.detail);
 
-  // --- Tools/Weapons (60% chance) ---
-  if (randomBoolean(0.6)) {
+  // --- Tools/Weapons - Flexible attachment system ---
+  const handY = armY - totalArmLength - 1;
+  const handZ = 0;
+  
+  // 60% chance: Tools replace hands, 40% chance: Tools are in addition to hands
+  const toolsReplaceHands = randomBoolean(0.6);
+  
+  if (toolsReplaceHands) {
+    // Tools replace hands (original behavior)
     const hasLeftTool = randomBoolean(0.7);
     const hasRightTool = randomBoolean(0.7);
     
-    const handY = armY - totalArmLength - 1;
-    const handZ = 0;
-    
     if (hasLeftTool) {
       if (randomBoolean(0.5)) {
-        // Weapon
         const weaponType = randomChoice(['blade', 'gun', 'plasma', 'drill', 'saw']);
         generateWeapon(builder, weaponType, leftArmX + armWidth/2, handY, handZ + 3, palette);
       } else {
-        // Tool
         const toolType = randomChoice(['pliers', 'wrench', 'cutter', 'claw']);
         generateTool(builder, toolType, leftArmX + armWidth/2, handY, handZ + 3, palette);
       }
     } else {
-      // Regular hand
       generateHand(builder, 'left', leftArmX + armWidth/2, handY, handZ + 2, palette);
     }
     
     if (hasRightTool) {
       if (randomBoolean(0.5)) {
-        // Weapon
         const weaponType = randomChoice(['blade', 'gun', 'plasma', 'drill', 'saw']);
         generateWeapon(builder, weaponType, rightArmX + armWidth/2, handY, handZ + 3, palette);
       } else {
-        // Tool
         const toolType = randomChoice(['pliers', 'wrench', 'cutter', 'claw']);
         generateTool(builder, toolType, rightArmX + armWidth/2, handY, handZ + 3, palette);
       }
     } else {
-      // Regular hand
       generateHand(builder, 'right', rightArmX + armWidth/2, handY, handZ + 2, palette);
     }
   } else {
-    // Both hands
-    const handY = armY - totalArmLength - 1;
-    generateHand(builder, 'left', leftArmX + armWidth/2, handY, 0, palette);
-    generateHand(builder, 'right', rightArmX + armWidth/2, handY, 0, palette);
+    // Tools are in addition to hands - always have hands
+    generateHand(builder, 'left', leftArmX + armWidth/2, handY, handZ + 2, palette);
+    generateHand(builder, 'right', rightArmX + armWidth/2, handY, handZ + 2, palette);
+    
+    // Add additional tools from other locations
+    const additionalToolLocation = randomChoice([
+      'back', 'back', 'back',      // 30%
+      'head', 'head',              // 20%
+      'shoulders', 'shoulders',    // 20%
+      'chest',                     // 15%
+      'hips'                       // 15%
+    ]);
+    
+    switch (additionalToolLocation) {
+      case 'back':
+        generateBackTool(builder, torsoX, torsoY, torsoZ, torsoWidth, torsoHeight, torsoDepth, palette);
+        break;
+      case 'head':
+        generateHeadTool(builder, headX, headY, headZ, palette);
+        break;
+      case 'shoulders':
+        generateShoulderTool(builder, leftArmX, rightArmX, armY, palette);
+        break;
+      case 'chest':
+        generateChestTool(builder, torsoX, torsoY, torsoZ, torsoWidth, torsoHeight, torsoDepth, palette);
+        break;
+      case 'hips':
+        generateHipTool(builder, leftLegX, rightLegX, legHeight, palette);
+        break;
+    }
   }
 
   // --- Optional Backpack/Jetpack (30% chance) ---
-  if (randomBoolean(0.3)) {
+  // Only if no back tool was added
+  if (randomBoolean(0.3) && (!toolsReplaceHands || randomBoolean(0.5))) {
     const backpackWidth = randomRange(3, 5);
     const backpackHeight = randomRange(4, 6);
     builder.addBox(-backpackWidth/2, torsoY + 1, -torsoDepth/2 - 2, backpackWidth, backpackHeight, 2, palette.secondary);
@@ -142,19 +172,6 @@ export function generateRobot(): VoxelObjectData {
     if (randomBoolean(0.5)) {
       builder.addBox(-1, torsoY + backpackHeight + 1, -torsoDepth/2 - 2, 2, 2, 2, palette.accent);
       builder.addBox(1, torsoY + backpackHeight + 1, -torsoDepth/2 - 2, 2, 2, 2, palette.accent);
-    }
-  }
-
-  // --- Optional Shoulder-mounted Weapons (20% chance) ---
-  if (randomBoolean(0.2)) {
-    const shoulderWeaponType = randomChoice(['gun', 'plasma', 'missile']);
-    if (shoulderWeaponType === 'missile') {
-      // Missile pod
-      builder.addBox(leftArmX - 2, armY + 2, -1, 2, 2, 4, palette.accent);
-      builder.addBox(rightArmX + armWidth, armY + 2, -1, 2, 2, 4, palette.accent);
-    } else {
-      generateWeapon(builder, shoulderWeaponType, leftArmX - 1, armY + 2, 0, palette);
-      generateWeapon(builder, shoulderWeaponType, rightArmX + armWidth + 1, armY + 2, 0, palette);
     }
   }
 

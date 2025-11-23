@@ -24,17 +24,29 @@ export function generateAnimal(): VoxelObjectData {
 
   if (isRecognizable) {
     // === RECOGNIZABLE ANIMALS (60%) ===
+    // More variety: reduce quadruped dominance, add more birds, fish, spiders
     const animalType = randomChoice([
-      'quadruped', 'quadruped', 'quadruped', // 30% - dog, cat, sheep
-      'long-necked', // 10% - giraffe
-      'large-quadruped', // 10% - elephant, rhino
-      'aquatic', // 5% - whale, dolphin
-      'biped' // 5% - bird, penguin
+      'quadruped', 'quadruped', // 13% - dog, cat, sheep (reduced from 30%)
+      'bird', 'bird', 'bird', // 20% - birds (increased)
+      'fish', 'fish', 'fish', // 20% - fish (increased)
+      'spider', 'spider', // 13% - spiders (new)
+      'long-necked', // 7% - giraffe
+      'large-quadruped', // 7% - elephant, rhino
+      'aquatic' // 7% - whale, dolphin
     ]);
 
     switch (animalType) {
       case 'quadruped':
         generateQuadrupedAnimal(builder, palette);
+        break;
+      case 'bird':
+        generateBird(builder, palette);
+        break;
+      case 'fish':
+        generateFish(builder, palette);
+        break;
+      case 'spider':
+        generateSpider(builder, palette);
         break;
       case 'long-necked':
         generateLongNeckedAnimal(builder, palette);
@@ -45,9 +57,6 @@ export function generateAnimal(): VoxelObjectData {
       case 'aquatic':
         generateAquaticAnimal(builder, palette);
         break;
-      case 'biped':
-        generateBipedAnimal(builder, palette);
-        break;
     }
   } else {
     // === WEIRD/ORGANIC ANIMALS (40%) ===
@@ -55,7 +64,8 @@ export function generateAnimal(): VoxelObjectData {
       'multi-limbed',
       'tentacled',
       'hybrid',
-      'asymmetric'
+      'asymmetric',
+      'spider' // Add spider to weird category too
     ]);
 
     switch (weirdType) {
@@ -70,6 +80,9 @@ export function generateAnimal(): VoxelObjectData {
         break;
       case 'asymmetric':
         generateAsymmetricAnimal(builder, palette);
+        break;
+      case 'spider':
+        generateSpider(builder, palette);
         break;
     }
   }
@@ -216,33 +229,175 @@ function generateAquaticAnimal(builder: VoxelBuilder, palette: Palette) {
   generateAnimalTail(builder, 'fin', 0, bodyY + bodyHeight/2, -bodyLen/2, randomRange(4, 6), palette);
 }
 
-function generateBipedAnimal(builder: VoxelBuilder, palette: Palette) {
-  const bodyWidth = randomRange(3, 5);
-  const bodyHeight = randomRange(4, 6);
-  const bodyDepth = randomRange(3, 5);
-  const legHeight = randomRange(4, 7);
+function generateBird(builder: VoxelBuilder, palette: Palette) {
+  // Bird body - smaller and more compact
+  const bodyWidth = randomRange(2, 4);
+  const bodyHeight = randomRange(3, 5);
+  const bodyDepth = randomRange(2, 4);
+  const legHeight = randomRange(2, 4);
   
   const bodyY = legHeight;
   generateBipedBody(builder, 0, bodyY, 0, bodyWidth, bodyHeight, bodyDepth, palette);
 
-  // Two legs
-  const legW = 2;
+  // Thin legs
+  const legW = 1;
   builder.addBox(-1, 0, 0, legW, legHeight, legW, palette.secondary);
   builder.addBox(1, 0, 0, legW, legHeight, legW, palette.secondary);
-
-  // Wings
-  if (randomBoolean(0.7)) {
-    generateWings(builder, 'left', -bodyWidth/2, bodyY + 1, 0, randomRange(4, 8), palette);
-    generateWings(builder, 'right', bodyWidth/2, bodyY + 1, 0, randomRange(4, 8), palette);
+  
+  // Feet (webbed or talons)
+  if (randomBoolean(0.5)) {
+    // Webbed feet
+    builder.addBox(-2, 0, -1, 3, 1, 2, palette.detail);
+    builder.addBox(0, 0, -1, 3, 1, 2, palette.detail);
+  } else {
+    // Talons
+    for (let i = 0; i < 3; i++) {
+      builder.addVoxel(-1 + i, 0, -1, palette.accent);
+      builder.addVoxel(1 + i, 0, -1, palette.accent);
+    }
   }
 
-  // Head
-  const headType = randomChoice(['beak', 'default', 'horns']);
-  generateAnimalHead(builder, headType, 0, bodyY + bodyHeight, 1, palette);
+  // Wings (always present for birds)
+  const wingSpan = randomRange(5, 10);
+  generateWings(builder, 'left', -bodyWidth/2, bodyY + 1, 0, wingSpan, palette);
+  generateWings(builder, 'right', bodyWidth/2, bodyY + 1, 0, wingSpan, palette);
 
-  // Tail
+  // Beak head
+  generateAnimalHead(builder, 'beak', 0, bodyY + bodyHeight, 1, palette);
+
+  // Tail feathers
+  if (randomBoolean(0.8)) {
+    const tailType = randomChoice(['long', 'bushy']);
+    generateAnimalTail(builder, tailType, 0, bodyY + bodyHeight - 1, -bodyDepth/2, randomRange(3, 6), palette);
+  }
+}
+
+function generateFish(builder: VoxelBuilder, palette: Palette) {
+  // Fish body - streamlined
+  const bodyLen = randomRange(8, 16);
+  const bodyWidth = randomRange(3, 6);
+  const bodyHeight = randomRange(3, 6);
+  
+  const bodyY = 5; // Lift it up
+  generateAquaticBody(builder, 0, bodyY, 0, bodyLen, bodyWidth, bodyHeight, palette);
+
+  // Fins - more detailed
+  // Dorsal fin (top)
+  const dorsalFinHeight = randomRange(3, 6);
+  for (let i = 0; i < dorsalFinHeight; i++) {
+    builder.addVoxel(0, bodyY + bodyHeight + i, bodyLen/4, palette.secondary);
+    builder.addVoxel(0, bodyY + bodyHeight + i, 0, palette.secondary);
+    builder.addVoxel(0, bodyY + bodyHeight + i, -bodyLen/4, palette.secondary);
+  }
+  
+  // Pectoral fins (sides)
+  generateFins(builder, 0, bodyY + bodyHeight/2, bodyLen/3, 2, palette);
+  
+  // Pelvic fins (bottom sides)
+  builder.addBox(-bodyWidth/2 - 1, bodyY, bodyLen/4, 1, 2, 2, palette.secondary);
+  builder.addBox(bodyWidth/2, bodyY, bodyLen/4, 1, 2, 2, palette.secondary);
+  
+  // Anal fin (bottom back)
+  for (let i = 0; i < 3; i++) {
+    builder.addVoxel(0, bodyY - 1, -bodyLen/3 + i, palette.secondary);
+  }
+
+  // Head with eyes on sides
+  generateAnimalHead(builder, 'snout', 0, bodyY + bodyHeight/2, bodyLen/2 + 1, palette);
+  // Side eyes
+  builder.addVoxel(-bodyWidth/2, bodyY + bodyHeight/2, bodyLen/2, '#FFFFFF');
+  builder.addVoxel(bodyWidth/2 - 1, bodyY + bodyHeight/2, bodyLen/2, '#FFFFFF');
+  builder.addVoxel(-bodyWidth/2, bodyY + bodyHeight/2, bodyLen/2 + 1, '#000000');
+  builder.addVoxel(bodyWidth/2 - 1, bodyY + bodyHeight/2, bodyLen/2 + 1, '#000000');
+
+  // Tail fin (large)
+  generateAnimalTail(builder, 'fin', 0, bodyY + bodyHeight/2, -bodyLen/2, randomRange(5, 8), palette);
+  
+  // Scales pattern
   if (randomBoolean(0.6)) {
-    generateAnimalTail(builder, 'long', 0, bodyY + bodyHeight - 1, -bodyDepth/2, randomRange(3, 5), palette);
+    for (let i = 0; i < 8; i++) {
+      const scaleX = randomRange(-bodyWidth/2 + 1, bodyWidth/2 - 1);
+      const scaleZ = randomRange(-bodyLen/2 + 1, bodyLen/2 - 1);
+      builder.addVoxel(scaleX, bodyY + bodyHeight, scaleZ, palette.accent);
+    }
+  }
+}
+
+function generateSpider(builder: VoxelBuilder, palette: Palette) {
+  // Spider body - two segments (cephalothorax and abdomen)
+  const bodySize = randomRange(3, 6);
+  const bodyY = 3;
+  
+  // Cephalothorax (front segment)
+  builder.addSphere(0, bodyY, bodySize/2, bodySize, palette.primary);
+  
+  // Abdomen (back segment, larger)
+  const abdomenSize = randomRange(bodySize, bodySize + 2);
+  builder.addSphere(0, bodyY, -abdomenSize/2, abdomenSize, palette.primary);
+  
+  // Legs - 8 legs total, 4 on each side
+  const legLength = randomRange(4, 8);
+  
+  for (let side = 0; side < 2; side++) {
+    const sideX = side === 0 ? -bodySize - 1 : bodySize;
+    for (let leg = 0; leg < 4; leg++) {
+      const legZ = bodySize/2 - leg * 2;
+      const legY = bodyY;
+      
+      // Leg segments (3 segments per leg)
+      const segment1Len = Math.floor(legLength / 3);
+      const segment2Len = Math.floor(legLength / 3);
+      const segment3Len = legLength - segment1Len - segment2Len;
+      
+      // First segment (up and out)
+      for (let i = 0; i < segment1Len; i++) {
+        builder.addVoxel(sideX + (side === 0 ? -i : i), legY + i, legZ, palette.secondary);
+      }
+      
+      // Second segment (down)
+      const seg2StartX = sideX + (side === 0 ? -segment1Len : segment1Len);
+      const seg2StartY = legY + segment1Len;
+      for (let i = 0; i < segment2Len; i++) {
+        builder.addVoxel(seg2StartX, seg2StartY - i, legZ, palette.secondary);
+      }
+      
+      // Third segment (out)
+      const seg3StartY = seg2StartY - segment2Len;
+      for (let i = 0; i < segment3Len; i++) {
+        builder.addVoxel(seg2StartX + (side === 0 ? -i : i), seg3StartY, legZ - i, palette.secondary);
+      }
+    }
+  }
+  
+  // Eyes (usually 8, but we'll do 4-6 for visibility)
+  const eyeCount = randomRange(4, 6);
+  for (let i = 0; i < eyeCount; i++) {
+    const angle = (i / eyeCount) * Math.PI * 2;
+    const eyeX = Math.round(Math.cos(angle) * (bodySize - 1));
+    const eyeZ = bodySize/2 + 1;
+    const eyeY = bodyY + Math.round(Math.sin(angle) * 1);
+    builder.addVoxel(eyeX, eyeY, eyeZ, '#FFFFFF');
+    builder.addVoxel(eyeX, eyeY, eyeZ + 1, '#000000');
+  }
+  
+  // Fangs/chelicerae
+  builder.addBox(-1, bodyY, bodySize/2 + bodySize, 1, 1, 2, palette.detail);
+  builder.addBox(1, bodyY, bodySize/2 + bodySize, 1, 1, 2, palette.detail);
+  
+  // Spinnerets (back)
+  if (randomBoolean(0.7)) {
+    builder.addVoxel(0, bodyY, -abdomenSize/2 - abdomenSize, palette.accent);
+    builder.addVoxel(-1, bodyY, -abdomenSize/2 - abdomenSize, palette.accent);
+    builder.addVoxel(1, bodyY, -abdomenSize/2 - abdomenSize, palette.accent);
+  }
+  
+  // Pattern on abdomen
+  if (randomBoolean(0.6)) {
+    for (let i = 0; i < 4; i++) {
+      const patternX = randomRange(-abdomenSize/2, abdomenSize/2);
+      const patternZ = randomRange(-abdomenSize, 0);
+      builder.addVoxel(patternX, bodyY + abdomenSize/2, patternZ, palette.accent);
+    }
   }
 }
 

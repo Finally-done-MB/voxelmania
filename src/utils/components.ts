@@ -1,5 +1,5 @@
 import type { Palette } from './palettes';
-import { VoxelBuilder, randomRange, randomBoolean } from './voxelBuilder';
+import { VoxelBuilder, randomRange, randomBoolean, randomChoice } from './voxelBuilder';
 
 // ========== ROBOT COMPONENTS ==========
 
@@ -208,6 +208,190 @@ export function generateRobotLeg(builder: VoxelBuilder, side: 'left' | 'right', 
   // Toes
   for (let i = 0; i < 3; i++) {
     builder.addVoxel(x - 1 + i, y + thighLength + shinLength + 3, z + footLength + 2, palette.detail);
+  }
+}
+
+export function generateBackTool(builder: VoxelBuilder, torsoX: number, torsoY: number, torsoZ: number, _torsoWidth: number, torsoHeight: number, torsoDepth: number, palette: Palette) {
+  // Large tools mounted on back (welding torches, large drills, extendable arms)
+  const toolType = randomChoice(['welding', 'large-drill', 'extendable-arm', 'crane']);
+  
+  switch (toolType) {
+    case 'welding':
+      // Welding torch
+      builder.addBox(torsoX - 1, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 3, 2, 2, 4, palette.accent);
+      builder.addVoxel(torsoX, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 4, '#FFFF00');
+      break;
+    case 'large-drill':
+      // Large drill
+      builder.addBox(torsoX - 2, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 3, 4, 3, 5, palette.secondary);
+      // Drill bit
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        const offsetX = Math.round(Math.cos(angle));
+        const offsetZ = Math.round(Math.sin(angle));
+        builder.addVoxel(torsoX + offsetX, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 4 + offsetZ, palette.detail);
+      }
+      break;
+    case 'extendable-arm':
+      // Extendable arm
+      builder.addBox(torsoX - 1, torsoY + 1, torsoZ - torsoDepth/2 - 2, 2, torsoHeight - 2, 2, palette.secondary);
+      // Arm segments
+      for (let i = 0; i < 3; i++) {
+        builder.addBox(torsoX - 1, torsoY + 1 + i * 2, torsoZ - torsoDepth/2 - 4 - i, 2, 2, 2, palette.detail);
+      }
+      // Gripper at end
+      builder.addBox(torsoX - 1, torsoY + 7, torsoZ - torsoDepth/2 - 7, 2, 1, 2, palette.accent);
+      builder.addBox(torsoX - 2, torsoY + 7, torsoZ - torsoDepth/2 - 7, 1, 1, 2, palette.accent);
+      builder.addBox(torsoX + 1, torsoY + 7, torsoZ - torsoDepth/2 - 7, 1, 1, 2, palette.accent);
+      break;
+    case 'crane':
+      // Crane arm
+      builder.addBox(torsoX - 1, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 2, 2, 4, 2, palette.secondary);
+      // Crane boom
+      for (let i = 0; i < 5; i++) {
+        builder.addBox(torsoX - 1, torsoY + torsoHeight/2 + 2, torsoZ - torsoDepth/2 - 4 - i, 2, 1, 1, palette.detail);
+      }
+      break;
+  }
+}
+
+export function generateHeadTool(builder: VoxelBuilder, headX: number, headY: number, headZ: number, palette: Palette) {
+  // Small tools mounted on head (sensors, scanners, small cutters, lights)
+  const toolType = randomChoice(['sensor', 'scanner', 'small-cutter', 'light', 'antenna']);
+  
+  switch (toolType) {
+    case 'sensor':
+      // Sensor array
+      builder.addBox(headX - 1, headY + 3, headZ, 2, 2, 2, palette.accent);
+      builder.addVoxel(headX, headY + 4, headZ, '#00FFFF');
+      break;
+    case 'scanner':
+      // Scanner
+      builder.addCylinder(headX, headY + 3, headZ, 1, 2, palette.accent, 'y');
+      builder.addVoxel(headX, headY + 4, headZ, '#FFFF00');
+      break;
+    case 'small-cutter':
+      // Small cutter
+      builder.addBox(headX - 1, headY + 3, headZ, 2, 1, 3, palette.accent);
+      builder.addVoxel(headX, headY + 3, headZ + 3, '#FF0000');
+      break;
+    case 'light':
+      // Light
+      builder.addBox(headX - 1, headY + 3, headZ, 2, 1, 2, palette.detail);
+      builder.addVoxel(headX, headY + 3, headZ + 2, '#FFFFFF');
+      break;
+    case 'antenna':
+      // Antenna
+      for (let i = 0; i < 4; i++) {
+        builder.addVoxel(headX, headY + 3 + i, headZ, palette.detail);
+      }
+      builder.addVoxel(headX, headY + 7, headZ, '#00FFFF');
+      break;
+  }
+}
+
+export function generateShoulderTool(builder: VoxelBuilder, leftArmX: number, rightArmX: number, armY: number, palette: Palette) {
+  // Tools mounted on shoulders (cannons, extendable arms, tools)
+  const toolType = randomChoice(['cannon', 'extendable', 'tool-mount']);
+  const armWidth = 2;
+  
+  switch (toolType) {
+    case 'cannon':
+      // Shoulder cannons
+      builder.addBox(leftArmX - 2, armY + 2, -1, 2, 2, 4, palette.accent);
+      builder.addBox(rightArmX + armWidth, armY + 2, -1, 2, 2, 4, palette.accent);
+      builder.addVoxel(leftArmX - 1, armY + 2, -2, '#FF0000');
+      builder.addVoxel(rightArmX + armWidth + 1, armY + 2, -2, '#FF0000');
+      break;
+    case 'extendable':
+      // Extendable arms
+      for (let i = 0; i < 3; i++) {
+        builder.addBox(leftArmX - 2, armY + 2 + i, -1, 1, 1, 2, palette.detail);
+        builder.addBox(rightArmX + armWidth + 1, armY + 2 + i, -1, 1, 1, 2, palette.detail);
+      }
+      // Grippers
+      builder.addBox(leftArmX - 3, armY + 5, -1, 1, 1, 2, palette.accent);
+      builder.addBox(rightArmX + armWidth + 2, armY + 5, -1, 1, 1, 2, palette.accent);
+      break;
+    case 'tool-mount':
+      // Tool mounts
+      builder.addBox(leftArmX - 2, armY + 2, -1, 2, 2, 3, palette.secondary);
+      builder.addBox(rightArmX + armWidth, armY + 2, -1, 2, 2, 3, palette.secondary);
+      // Small tools
+      builder.addVoxel(leftArmX - 1, armY + 2, -2, palette.accent);
+      builder.addVoxel(rightArmX + armWidth + 1, armY + 2, -2, palette.accent);
+      break;
+  }
+}
+
+export function generateChestTool(builder: VoxelBuilder, torsoX: number, torsoY: number, torsoZ: number, _torsoWidth: number, torsoHeight: number, torsoDepth: number, palette: Palette) {
+  // Medium tools mounted on chest (cutters, saws, plasma torches)
+  const toolType = randomChoice(['cutter', 'saw', 'plasma-torch', 'welder']);
+  
+  switch (toolType) {
+    case 'cutter':
+      // Chest-mounted cutter
+      builder.addBox(torsoX - 1, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 1, 2, 2, 3, palette.accent);
+      builder.addVoxel(torsoX, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 2, '#FF0000');
+      break;
+    case 'saw':
+      // Circular saw
+      builder.addBox(torsoX - 2, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 1, 4, 2, 2, palette.secondary);
+      // Saw blade
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const offsetX = Math.round(Math.cos(angle) * 2);
+        const offsetZ = Math.round(Math.sin(angle) * 2);
+        builder.addVoxel(torsoX + offsetX, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 2 + offsetZ, palette.accent);
+      }
+      break;
+    case 'plasma-torch':
+      // Plasma torch
+      builder.addBox(torsoX - 1, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 1, 2, 2, 4, palette.accent);
+      builder.addVoxel(torsoX, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 2, '#00FFFF');
+      break;
+    case 'welder':
+      // Welder
+      builder.addBox(torsoX - 1, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 1, 2, 1, 3, palette.secondary);
+      builder.addVoxel(torsoX, torsoY + torsoHeight/2, torsoZ - torsoDepth/2 - 2, '#FFFF00');
+      break;
+  }
+}
+
+export function generateHipTool(builder: VoxelBuilder, leftLegX: number, rightLegX: number, legHeight: number, palette: Palette) {
+  // Utility tools mounted on hips (grippers, small drills, storage compartments)
+  const toolType = randomChoice(['gripper', 'small-drill', 'storage', 'tool-pod']);
+  const legWidth = 2;
+  
+  switch (toolType) {
+    case 'gripper':
+      // Hip-mounted grippers
+      builder.addBox(leftLegX + legWidth/2, legHeight - 2, 1, 2, 2, 2, palette.accent);
+      builder.addBox(rightLegX + legWidth/2, legHeight - 2, 1, 2, 2, 2, palette.accent);
+      // Gripper jaws
+      builder.addBox(leftLegX + legWidth/2 + 1, legHeight - 2, 2, 1, 1, 2, palette.detail);
+      builder.addBox(rightLegX + legWidth/2 + 1, legHeight - 2, 2, 1, 1, 2, palette.detail);
+      break;
+    case 'small-drill':
+      // Small drills
+      builder.addBox(leftLegX + legWidth/2, legHeight - 2, 1, 1, 2, 3, palette.accent);
+      builder.addBox(rightLegX + legWidth/2, legHeight - 2, 1, 1, 2, 3, palette.accent);
+      builder.addVoxel(leftLegX + legWidth/2, legHeight - 1, 3, palette.detail);
+      builder.addVoxel(rightLegX + legWidth/2, legHeight - 1, 3, palette.detail);
+      break;
+    case 'storage':
+      // Storage compartments
+      builder.addBox(leftLegX + legWidth/2, legHeight - 3, 1, 2, 3, 2, palette.secondary);
+      builder.addBox(rightLegX + legWidth/2, legHeight - 3, 1, 2, 3, 2, palette.secondary);
+      break;
+    case 'tool-pod':
+      // Tool pods
+      builder.addBox(leftLegX + legWidth/2, legHeight - 2, 1, 2, 2, 2, palette.detail);
+      builder.addBox(rightLegX + legWidth/2, legHeight - 2, 1, 2, 2, 2, palette.detail);
+      // Tools inside
+      builder.addVoxel(leftLegX + legWidth/2 + 1, legHeight - 1, 1, palette.accent);
+      builder.addVoxel(rightLegX + legWidth/2 + 1, legHeight - 1, 1, palette.accent);
+      break;
   }
 }
 
