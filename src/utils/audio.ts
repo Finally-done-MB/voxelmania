@@ -533,9 +533,62 @@ const playParticleCollisionSound = (velocity: number) => {
   osc.stop(t + duration + 0.01);
 };
 
+// --- SFX: Click Impact (Pew/Bam) ---
+
+export const playClickImpactSound = () => {
+  if (!audioCtx || !compressor) return;
+  resumeAudio();
+
+  const t = audioCtx.currentTime;
+  
+  // Low-pitched "pew" or "bam" sound
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  // Low frequency for "bam" sound (80-120 Hz)
+  osc.type = 'sawtooth'; // Rich harmonics
+  osc.frequency.value = 80 + Math.random() * 40; // 80-120 Hz
+  
+  // Short, punchy envelope
+  const duration = 0.15; // 150ms
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.25, t + 0.01); // Quick attack
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  
+  // Low-pass filter for deeper, more muffled "bam" sound
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 200; // Cut off high frequencies
+  filter.Q.value = 1;
+  
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(compressor);
+  
+  osc.start(t);
+  osc.stop(t + duration + 0.01);
+  
+  // Add a subtle click at the start for "pew" character
+  const click = audioCtx.createOscillator();
+  const clickGain = audioCtx.createGain();
+  
+  click.type = 'square';
+  click.frequency.value = 150 + Math.random() * 100; // 150-250 Hz
+  
+  clickGain.gain.setValueAtTime(0, t);
+  clickGain.gain.linearRampToValueAtTime(0.1, t + 0.002);
+  clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+  
+  click.connect(clickGain);
+  clickGain.connect(compressor);
+  
+  click.start(t);
+  click.stop(t + 0.03);
+};
+
 // --- SFX: Ground Impact ---
 
-const playGroundImpactSound = (velocity: number) => {
+export const playGroundImpactSound = (velocity: number) => {
   if (!audioCtx || !compressor) return;
   resumeAudio();
 

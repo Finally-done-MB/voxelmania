@@ -1,9 +1,9 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { InstancedRigidBodies, RapierRigidBody } from '@react-three/rapier';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Voxel } from '../types';
-import { addCollisionEvent, processCollisionQueue, checkGroundImpact, startDebrisAmbient, stopDebrisAmbient } from '../utils/audio';
+import { addCollisionEvent, processCollisionQueue, checkGroundImpact, startDebrisAmbient, stopDebrisAmbient, playClickImpactSound } from '../utils/audio';
 import { useAppStore } from '../store/useAppStore';
 
 interface DebrisFieldProps {
@@ -14,6 +14,8 @@ interface DebrisFieldProps {
 export function DebrisField({ voxels, mode }: DebrisFieldProps) {
   const rigidBodies = useRef<RapierRigidBody[]>(null);
   const { isSfxMuted } = useAppStore();
+  const { camera, raycaster, gl } = useThree();
+  const [clickPoint, setClickPoint] = useState<THREE.Vector3 | null>(null);
   
   // Track previous positions and velocities for impact detection
   const previousPositions = useRef<Map<number, THREE.Vector3>>(new Map());
@@ -53,6 +55,172 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       stopDebrisAmbient();
     };
   }, [isSfxMuted, mode]);
+  
+  // Handle click interactions to apply forces
+  useEffect(() => {
+    let isDragging = false;
+    let mouseDownTime = 0;
+    let mouseDownPos: { x: number; y: number } | null = null;
+    const DRAG_THRESHOLD = 5; // pixels
+    const CLICK_TIME_THRESHOLD = 200; // ms
+    
+    const handleMouseDown = (event: MouseEvent) => {
+      isDragging = false;
+      mouseDownTime = performance.now();
+      mouseDownPos = { x: event.clientX, y: event.clientY };
+    };
+    
+    const handleMouseMove = (event: MouseEvent) => {
+      if (mouseDownPos) {
+        const dx = event.clientX - mouseDownPos.x;
+        const dy = event.clientY - mouseDownPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > DRAG_THRESHOLD) {
+          isDragging = true;
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      mouseDownPos = null;
+    };
+    
+    const handleClick = (event: MouseEvent) => {
+      // Only apply force if it was a quick click, not a drag
+      const clickDuration = performance.now() - mouseDownTime;
+      if (isDragging || clickDuration > CLICK_TIME_THRESHOLD) {
+        return;
+      }
+      
+      if (!rigidBodies.current || rigidBodies.current.length === 0) return;
+      
+      // Get mouse position in normalized device coordinates (-1 to +1)
+      const rect = gl.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      // Raycast from camera through mouse position
+      raycaster.setFromCamera(mouse, camera);
+      
+      // First, try to find intersection with particles themselves
+      // We'll check particles and find the closest one, or use a plane intersection
+      const rayOrigin = raycaster.ray.origin;
+      const rayDirection = raycaster.ray.direction.clone().normalize();
+      
+      // Find intersection with ground plane (y = -4.5) as fallback
+      const groundY = -4.5;
+      const t = (groundY - rayOrigin.y) / rayDirection.y;
+      let worldPoint: THREE.Vector3;
+      
+      if (t > 0 && t < 100) {
+        // Intersection with ground plane
+        worldPoint = rayOrigin.clone().add(rayDirection.multiplyScalar(t));
+      } else {
+        // If no ground intersection, use a point along the ray at reasonable distance
+        worldPoint = rayOrigin.clone().add(rayDirection.multiplyScalar(20));
+      }
+      
+      // Also check for closest particle to the ray for better accuracy
+      let closestParticle: { index: number; distance: number; point: THREE.Vector3 } | null = null;
+      
+      rigidBodies.current.forEach((api, i) => {
+        if (!api || !api.isValid()) return;
+        
+        try {
+          const translation = api.translation();
+          const particlePos = new THREE.Vector3(translation.x, translation.y, translation.z);
+          
+          // Distance from ray to particle
+          const toParticle = particlePos.clone().sub(rayOrigin);
+          const projectionLength = toParticle.dot(rayDirection);
+          const projection = rayDirection.clone().multiplyScalar(projectionLength);
+          const closestPointOnRay = rayOrigin.clone().add(projection);
+          const distanceToRay = particlePos.distanceTo(closestPointOnRay);
+          
+          // If particle is close to ray and in front of camera
+          if (distanceToRay < 2 && projectionLength > 0 && projectionLength < 50) {
+            if (!closestParticle || distanceToRay < closestParticle.distance) {
+              closestParticle = {
+                index: i,
+                distance: distanceToRay,
+                point: particlePos.clone()
+              };
+            }
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      });
+      
+      // Use closest particle point if found, otherwise use plane intersection
+      if (closestParticle) {
+        worldPoint = closestParticle.point;
+      }
+      
+      setClickPoint(worldPoint.clone());
+      
+      // Find particles within radius of click point
+      const impactRadius = 3; // Radius of impact
+      const impactForce = 125; // Force magnitude (increased from 25)
+      let affectedCount = 0;
+      
+      rigidBodies.current.forEach((api, i) => {
+        if (!api || !api.isValid()) return;
+        
+        try {
+          const translation = api.translation();
+          const particlePos = new THREE.Vector3(translation.x, translation.y, translation.z);
+          const distance = particlePos.distanceTo(worldPoint);
+          
+          if (distance < impactRadius) {
+            // Calculate direction from click point to particle
+            const direction = particlePos.clone().sub(worldPoint).normalize();
+            
+            // Apply force based on distance (closer = stronger)
+            const distanceFactor = 1 - (distance / impactRadius);
+            const force = impactForce * distanceFactor;
+            
+            // Get current velocity
+            const linvel = api.linvel();
+            const currentVel = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
+            
+            // Add impulse in the direction away from click point
+            const impulse = direction.multiplyScalar(force);
+            const newVel = currentVel.add(impulse);
+            
+            api.setLinvel({ x: newVel.x, y: newVel.y, z: newVel.z }, true);
+            api.wakeUp();
+            
+            affectedCount++;
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      });
+      
+      // Play sound effect if particles were affected
+      if (affectedCount > 0 && !isSfxMuted) {
+        // Play low-pitched "pew" or "bam" sound for click impact
+        playClickImpactSound();
+      }
+      
+      // Clear click point after a short delay (for potential visual feedback)
+      setTimeout(() => setClickPoint(null), 100);
+    };
+    
+    gl.domElement.addEventListener('mousedown', handleMouseDown);
+    gl.domElement.addEventListener('mousemove', handleMouseMove);
+    gl.domElement.addEventListener('mouseup', handleMouseUp);
+    gl.domElement.addEventListener('click', handleClick);
+    
+    return () => {
+      gl.domElement.removeEventListener('mousedown', handleMouseDown);
+      gl.domElement.removeEventListener('mousemove', handleMouseMove);
+      gl.domElement.removeEventListener('mouseup', handleMouseUp);
+      gl.domElement.removeEventListener('click', handleClick);
+    };
+  }, [rigidBodies, camera, raycaster, gl, isSfxMuted]);
 
   useEffect(() => {
     if (!rigidBodies.current || rigidBodies.current.length === 0) return;
