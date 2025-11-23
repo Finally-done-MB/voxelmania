@@ -19,6 +19,24 @@ import {
   playExplosionSound, playCrumbleSound 
 } from '../utils/audio';
 
+// Hook to detect mobile devices
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768; // Tailwind's md breakpoint
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isMobile;
+};
+
 const CATEGORIES: { id: GeneratorCategory; icon: any; label: string }[] = [
   { id: 'robot', icon: Bot, label: 'Robots' },
   { id: 'spaceship', icon: Rocket, label: 'Ships' },
@@ -35,9 +53,23 @@ export function ControlPanel() {
     isSfxMuted, toggleSfxMute
   } = useAppStore();
   
+  const isMobile = useIsMobile();
   const [activeCategory, setActiveCategory] = useState<GeneratorCategory>('robot');
-  const [isOpen, setIsOpen] = useState(true);
+  // Start closed on mobile, open on desktop
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.innerWidth >= 768; // md breakpoint
+  });
   const [savedItems, setSavedItems] = useState<VoxelObjectData[]>([]);
+
+  // Update menu state when screen size changes (e.g., device rotation from desktop to mobile)
+  useEffect(() => {
+    // Only auto-open on desktop if it was closed (user might have closed it on mobile)
+    if (!isMobile && !isOpen) {
+      setIsOpen(true);
+    }
+    // Don't auto-close on mobile - let user control it via the menu button
+  }, [isMobile, isOpen]);
   const [activeTab, setActiveTab] = useState<'saved' | 'favorites' | 'stats'>('saved');
   const [seedInput, setSeedInput] = useState('');
   const [copiedSeed, setCopiedSeed] = useState(false);
@@ -204,6 +236,8 @@ export function ControlPanel() {
 
   const handleScrap = (mode: 'explode' | 'crumble') => {
      if (currentObject && !isScrapped) {
+       // Ensure audio is initialized on user interaction (important for mobile)
+       resumeAudio();
        if (!isSfxMuted) {
          // SFX functions handle their own audio context initialization
          if (mode === 'explode') playExplosionSound();
@@ -304,9 +338,31 @@ export function ControlPanel() {
         onChange={handleFileChange}
       />
 
+      {/* Floating Effect Buttons - Always visible on mobile when menu is closed */}
+      {isMobile && !isOpen && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+          <button 
+            onClick={() => handleScrap('explode')}
+            className="p-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-full border border-red-500/50 transition-all active:scale-95 shadow-lg"
+            disabled={isScrapped}
+            title="Explode"
+          >
+            <Rocket size={24} />
+          </button>
+          <button 
+            onClick={() => handleScrap('crumble')}
+            className="p-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-full border border-orange-500/50 transition-all active:scale-95 shadow-lg"
+            disabled={isScrapped}
+            title="Crumble"
+          >
+            <Hammer size={24} />
+          </button>
+        </div>
+      )}
+
       {/* Mobile Toggle */}
       <button 
-        className="fixed top-4 right-4 z-50 p-2 bg-gray-800 rounded-full md:hidden text-white"
+        className="fixed top-4 right-4 z-50 p-2 bg-gray-800 rounded-full md:hidden text-white shadow-lg"
             onClick={() => {
               setIsOpen(!isOpen);
               // Initialize audio on any user interaction

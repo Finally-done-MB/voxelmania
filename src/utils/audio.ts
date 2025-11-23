@@ -65,7 +65,26 @@ export const resumeAudio = async () => {
     startAmbientMusic();
   }
   if (audioCtx?.state === 'suspended') {
-    await audioCtx.resume();
+    try {
+      await audioCtx.resume();
+      // On mobile, sometimes we need to wait a bit for the context to fully resume
+      if (audioCtx.state === 'running') {
+        // Context is now running, ensure music is playing
+        startAmbientMusic();
+      }
+    } catch (error) {
+      console.warn('Failed to resume audio context:', error);
+      // Try again after a short delay (mobile browsers sometimes need this)
+      setTimeout(async () => {
+        if (audioCtx?.state === 'suspended') {
+          try {
+            await audioCtx.resume();
+          } catch (e) {
+            console.warn('Retry resume audio failed:', e);
+          }
+        }
+      }, 100);
+    }
   }
 };
 
@@ -199,9 +218,17 @@ export const playExplosionSound = () => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
   if (!audioCtx || !compressor) return;
-  // Resume audio context if suspended (needed for SFX to play)
+  // Resume audio context if suspended (needed for SFX to play, especially on mobile)
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(console.error);
+    audioCtx.resume().catch((error) => {
+      console.warn('Failed to resume audio for explosion sound:', error);
+      // Retry once after a short delay (mobile browsers sometimes need this)
+      setTimeout(() => {
+        if (audioCtx?.state === 'suspended') {
+          audioCtx.resume().catch(console.error);
+        }
+      }, 50);
+    });
   }
 
   const t = audioCtx.currentTime;
@@ -256,9 +283,17 @@ export const playCrumbleSound = () => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
   if (!audioCtx || !compressor) return;
-  // Resume audio context if suspended (needed for SFX to play)
+  // Resume audio context if suspended (needed for SFX to play, especially on mobile)
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(console.error);
+    audioCtx.resume().catch((error) => {
+      console.warn('Failed to resume audio for crumble sound:', error);
+      // Retry once after a short delay (mobile browsers sometimes need this)
+      setTimeout(() => {
+        if (audioCtx?.state === 'suspended') {
+          audioCtx.resume().catch(console.error);
+        }
+      }, 50);
+    });
   }
 
   // Play 5-10 small "grains" of sound

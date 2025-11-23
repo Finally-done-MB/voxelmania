@@ -11,6 +11,7 @@ import { Group, Box3, Vector3, PerspectiveCamera } from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { DebrisField } from './components/DebrisField';
 import type { Voxel } from './types';
+import { resumeAudio } from './utils/audio';
 
 function AutoRotator() {
   const groupRef = useRef<Group>(null);
@@ -156,11 +157,27 @@ function CameraFitter() {
 }
 
 function App() {
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const audioInitializedRef = useRef(false);
+
+  // Initialize audio on first touch/interaction with canvas (important for mobile)
+  const handleCanvasInteraction = useCallback(() => {
+    if (!audioInitializedRef.current) {
+      resumeAudio();
+      audioInitializedRef.current = true;
+    }
+  }, []);
+
   return (
     <div className="w-full h-full relative">
       <ControlPanel />
       
-      <div className="absolute inset-0 md:left-80 z-0 bg-[#202025]">
+      <div 
+        ref={canvasContainerRef}
+        className="absolute inset-0 md:left-80 z-0 bg-[#202025]"
+        onTouchStart={handleCanvasInteraction}
+        onPointerDown={handleCanvasInteraction}
+      >
         <ObjectNameOverlay />
         <Canvas 
           shadows 
