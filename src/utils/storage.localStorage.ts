@@ -25,6 +25,18 @@ export class LocalStorageAdapter implements IStorage {
 
   save(blueprint: VoxelObjectData): void {
     const existing = this.getAll();
+    // Check if blueprint with same seed already exists (prevent duplicates)
+    const isDuplicate = existing.some(item => 
+      item.seed === blueprint.seed && 
+      item.category === blueprint.category &&
+      item.voxels.length === blueprint.voxels.length
+    );
+    
+    if (isDuplicate) {
+      console.log('Blueprint already saved (same seed)');
+      return; // Don't save duplicates
+    }
+    
     const updated = [...existing, blueprint];
     this.setStorage(updated);
   }

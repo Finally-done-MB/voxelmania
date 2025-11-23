@@ -304,17 +304,35 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
   }, [mode, voxels]);
 
   // Collision detection and ground impact detection using useFrame
+  // OPTIMIZED: Skip frames on mobile for better performance
+  const frameCounter = useRef(0);
   useFrame((_, delta) => {
     if (!rigidBodies.current) {
       processCollisionQueue(isSfxMuted, delta); // Still process queue to clear it
       return;
     }
 
+    // PERFORMANCE: On mobile, only check collisions every 2-3 frames (30-20 FPS check rate)
+    frameCounter.current++;
+    const checkThisFrame = frameCounter.current % 2 === 0;
+    
+    if (!checkThisFrame) {
+      // Still process collision queue even when skipping checks
+      processCollisionQueue(isSfxMuted, delta);
+      return;
+    }
+
     const currentTime = performance.now();
 
-    // Check each particle for collisions and ground impacts
-    rigidBodies.current.forEach((api, i) => {
-      if (!api || !api.isValid()) return;
+    // OPTIMIZED: Sample only a subset of particles per frame for collision detection
+    const totalParticles = rigidBodies.current.length;
+    const samplesPerFrame = Math.min(50, totalParticles); // Max 50 particles per frame
+    const stride = Math.max(1, Math.floor(totalParticles / samplesPerFrame));
+
+    // Check sampled particles for collisions and ground impacts
+    for (let i = 0; i < totalParticles; i += stride) {
+      const api = rigidBodies.current[i];
+      if (!api || !api.isValid()) continue;
 
       try {
         const translation = api.translation();
@@ -340,21 +358,18 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
           }
         }
 
-        // Check for particle-to-particle collisions using Rapier's contact pairs
-        // We'll use velocity changes as a proxy for collisions
-        if (prevVel && prevPos) {
+        // Check for particle-to-particle collisions using velocity changes
+        // OPTIMIZED: Only check for high-velocity particles
+        if (prevVel && prevPos && velocity > 2) {
           const velocityChange = currentVel.clone().sub(prevVel);
           const velocityChangeMagnitude = velocityChange.length();
           
-          // If velocity changed significantly and particle is moving, likely a collision
-          if (velocityChangeMagnitude > 2 && velocity > 1) {
-            // Check if this is a collision (not just gravity)
-            const gravityComponent = Math.abs(velocityChange.y);
+          // If velocity changed significantly, likely a collision
+          if (velocityChangeMagnitude > 3) {
             const horizontalChange = Math.sqrt(velocityChange.x ** 2 + velocityChange.z ** 2);
             
             // If horizontal velocity changed significantly, it's likely a collision
-            if (horizontalChange > 1.5 || (velocityChangeMagnitude > 3 && gravityComponent < velocityChangeMagnitude * 0.7)) {
-              // Use the magnitude of velocity change as collision velocity
+            if (horizontalChange > 2) {
               const collisionVelocity = Math.min(velocityChangeMagnitude, velocity);
               addCollisionEvent(collisionVelocity, false, `${particleId}-collision-${currentTime}`);
             }
@@ -367,7 +382,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       } catch (e) {
         // Ignore errors from invalid bodies
       }
-    });
+    }
 
     // Process collision queue every frame (pass mute state and delta time)
     processCollisionQueue(isSfxMuted, delta);

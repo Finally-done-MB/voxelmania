@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { Save, Check } from 'lucide-react';
+import { saveBlueprint, getSavedBlueprints } from '../utils/storage';
 
 export function ObjectNameOverlay() {
   const currentObject = useAppStore((state) => state.currentObject);
@@ -8,6 +10,7 @@ export function ObjectNameOverlay() {
     
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
+    const [showSavedFeedback, setShowSavedFeedback] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Don't show overlay if no object, object is scrapped, or no name
@@ -27,12 +30,27 @@ export function ObjectNameOverlay() {
       }
     }, [currentObject?.name, isEditing]);
 
-    const handleDoubleClick = useCallback(() => {
+    const handleClick = useCallback(() => {
       if (!isScrapped && currentObject?.name) {
         setEditValue(currentObject.name);
         setIsEditing(true);
       }
     }, [isScrapped, currentObject]);
+    
+    const handleSaveBlueprint = useCallback((e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (currentObject) {
+        const beforeCount = getSavedBlueprints().length;
+        saveBlueprint(currentObject);
+        const afterCount = getSavedBlueprints().length;
+        
+        // Show feedback only if actually saved (not duplicate)
+        if (afterCount > beforeCount) {
+          setShowSavedFeedback(true);
+          setTimeout(() => setShowSavedFeedback(false), 2000);
+        }
+      }
+    }, [currentObject]);
 
     const handleSave = useCallback(() => {
       if (editValue.trim() && updateCurrentObjectName) {
@@ -73,7 +91,7 @@ export function ObjectNameOverlay() {
     const displayName = currentObject?.name || '';
 
     return (
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex items-center gap-2">
         <div className="bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20 shadow-lg pointer-events-auto">
           {isEditing ? (
             <input
@@ -84,18 +102,41 @@ export function ObjectNameOverlay() {
               onBlur={handleSave}
               onKeyDown={handleKeyDown}
               className="text-white text-sm font-medium text-center bg-transparent border-none outline-none w-full"
-              style={{ minWidth: '100px' }}
+              style={{ 
+                minWidth: '100px',
+                fontSize: '16px' // Prevent iOS auto-zoom (needs to be >=16px)
+              }}
             />
           ) : (
             <div
               className="text-white text-sm font-medium text-center cursor-text hover:text-blue-300 transition-colors"
-              onDoubleClick={handleDoubleClick}
-              title="Double-click to edit"
+              onClick={handleClick}
+              title="Tap to edit"
             >
               {displayName}
             </div>
           )}
         </div>
+        
+        {/* Save button - transparent with border, next to name */}
+        {!isEditing && (
+          <button
+            onClick={handleSaveBlueprint}
+            className={`p-2 rounded-lg border-2 transition-all active:scale-95 pointer-events-auto ${
+              showSavedFeedback 
+                ? 'bg-green-500/20 border-green-400' 
+                : 'bg-transparent border-white/30 hover:border-green-400 hover:bg-green-500/10'
+            }`}
+            style={{ touchAction: 'manipulation' }}
+            title="Save blueprint"
+          >
+            {showSavedFeedback ? (
+              <Check size={18} className="text-green-400" />
+            ) : (
+              <Save size={18} className="text-white" />
+            )}
+          </button>
+        )}
       </div>
     );
 }

@@ -20,9 +20,11 @@
   ],
   "scripts": {
     "dev": "vite",
+    "dev:mobile": "vite --host",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:mobile": "vite preview --host",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"

@@ -161,7 +161,13 @@ function App() {
   const audioInitializedRef = useRef(false);
 
   // Initialize audio on first touch/interaction with canvas (important for mobile)
-  const handleCanvasInteraction = useCallback(() => {
+  const handleCanvasInteraction = useCallback((e: React.PointerEvent | React.TouchEvent) => {
+    // Don't capture events from buttons or interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[role="button"]') || target.tagName === 'BUTTON') {
+      return; // Let buttons handle their own events
+    }
+    
     if (!audioInitializedRef.current) {
       resumeAudio();
       audioInitializedRef.current = true;

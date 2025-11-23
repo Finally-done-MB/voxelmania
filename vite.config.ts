@@ -8,4 +8,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    host: '0.0.0.0', // Listen on all network interfaces
+    port: 5173,
+    strictPort: false,
+    allowedHosts: [
+      '.trycloudflare.com', // Allow all Cloudflare tunnel domains
+      'localhost',
+      '.local',
+    ],
+  },
 })

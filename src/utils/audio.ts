@@ -1,3 +1,5 @@
+import { unlockSilentMode } from './silentModeUnlock';
+
 // Web Audio API Context
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
@@ -59,24 +61,31 @@ export const initAudio = () => {
 };
 
 export const resumeAudio = async () => {
+  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await yet)
+  // This needs to start within the user gesture context
+  const unlockPromise = unlockSilentMode();
+  
   if (!audioCtx) {
     initAudio();
     // Start music immediately (muted autoplay is allowed)
     startAmbientMusic();
   }
-  if (audioCtx?.state === 'suspended') {
+  
+  const ctx = audioCtx;
+  if (ctx && ctx.state === 'suspended') {
     try {
-      await audioCtx.resume();
-      // On mobile, sometimes we need to wait a bit for the context to fully resume
-      if (audioCtx.state === 'running') {
-        // Context is now running, ensure music is playing
-        startAmbientMusic();
-      }
+      // Resume context immediately (still within user gesture)
+      console.log('🎵 [resumeAudio] Calling ctx.resume(), state before:', ctx.state);
+      await ctx.resume();
+      console.log('🎵 [resumeAudio] After ctx.resume(), state:', ctx.state);
+      
+      // After resume() succeeds, state should be 'running', so ensure music is playing
+      startAmbientMusic();
     } catch (error) {
       console.warn('Failed to resume audio context:', error);
       // Try again after a short delay (mobile browsers sometimes need this)
       setTimeout(async () => {
-        if (audioCtx?.state === 'suspended') {
+        if (audioCtx && audioCtx.state === 'suspended') {
           try {
             await audioCtx.resume();
           } catch (e) {
@@ -86,23 +95,57 @@ export const resumeAudio = async () => {
       }, 100);
     }
   }
+  
+  // Wait for silent mode unlock to complete (it started earlier)
+  await unlockPromise.catch(err => console.warn('Silent mode unlock failed:', err));
 };
 
 // --- Generative Ambient Music ---
 
-export const startAmbientMusic = () => {
-  // Don't restart if already playing
-  if (ambientInterval) {
-    return; // Music is already playing
+export const startAmbientMusic = async () => {
+  console.log('🎵 startAmbientMusic called, ambientInterval:', !!ambientInterval, 'audioCtx:', !!audioCtx);
+  
+  // FIXED: Don't just return if interval exists - check if context is suspended
+  // Clear old interval if audio was suspended
+  if (ambientInterval && audioCtx && audioCtx.state === 'suspended') {
+    console.log('🎵 Clearing stale music interval due to suspended context');
+    clearTimeout(ambientInterval);
+    ambientInterval = null;
   }
   
-  if (!audioCtx) initAudio();
-  if (!audioCtx) return;
+  // Don't restart if already playing AND context is running
+  if (ambientInterval && audioCtx && audioCtx.state === 'running') {
+    console.log('🎵 Music already playing');
+    return;
+  }
   
-  // Try to resume if suspended (needed for audio to actually play)
+  if (!audioCtx) {
+    console.log('🎵 Initializing audio context');
+    initAudio();
+  }
+  if (!audioCtx) {
+    console.warn('🎵 Failed to initialize audio context');
+    return;
+  }
+  
+  // CRITICAL iOS FIX: Start silent mode unlock first (don't await yet)
+  const unlockPromise = unlockSilentMode();
+  
+  // Resume context immediately (still within user gesture if called from click)
+  console.log('🎵 Audio context state:', audioCtx.state);
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(console.error);
+    console.log('🎵 Resuming suspended audio context');
+    try {
+      await audioCtx.resume();
+      console.log('🎵 Audio context resumed, new state:', audioCtx.state);
+    } catch (error) {
+      console.error('🎵 Failed to resume audio context:', error);
+      return;
+    }
   }
+  
+  // Wait for silent mode unlock (it started earlier)
+  await unlockPromise.catch(err => console.warn('Silent mode unlock in startMusic failed:', err));
 
   // Play a note every 2-4 seconds
   const scheduleNextNote = () => {
@@ -111,6 +154,7 @@ export const startAmbientMusic = () => {
     ambientInterval = setTimeout(scheduleNextNote, nextTime);
   };
 
+  console.log('🎵 Starting music notes');
   scheduleNextNote();
 };
 
@@ -214,13 +258,17 @@ const playAmbientNote = () => {
 
 // --- SFX: Explosion ---
 
-export const playExplosionSound = () => {
+export const playExplosionSound = async () => {
+  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await yet)
+  const unlockPromise = unlockSilentMode();
+  
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
   if (!audioCtx || !compressor) return;
-  // Resume audio context if suspended (needed for SFX to play, especially on mobile)
+  
+  // Resume context immediately (still within user gesture)
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch((error) => {
+    await audioCtx.resume().catch((error) => {
       console.warn('Failed to resume audio for explosion sound:', error);
       // Retry once after a short delay (mobile browsers sometimes need this)
       setTimeout(() => {
@@ -230,6 +278,9 @@ export const playExplosionSound = () => {
       }, 50);
     });
   }
+  
+  // Wait for silent mode unlock (it started earlier)
+  await unlockPromise.catch(err => console.warn('Silent mode unlock in explosion failed:', err));
 
   const t = audioCtx.currentTime;
   
@@ -279,13 +330,17 @@ export const playExplosionSound = () => {
 
 // --- SFX: Crumble (Granular) ---
 
-export const playCrumbleSound = () => {
+export const playCrumbleSound = async () => {
+  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await yet)
+  const unlockPromise = unlockSilentMode();
+  
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
   if (!audioCtx || !compressor) return;
-  // Resume audio context if suspended (needed for SFX to play, especially on mobile)
+  
+  // Resume context immediately (still within user gesture)
   if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch((error) => {
+    await audioCtx.resume().catch((error) => {
       console.warn('Failed to resume audio for crumble sound:', error);
       // Retry once after a short delay (mobile browsers sometimes need this)
       setTimeout(() => {
@@ -295,6 +350,9 @@ export const playCrumbleSound = () => {
       }, 50);
     });
   }
+  
+  // Wait for silent mode unlock (it started earlier)
+  await unlockPromise.catch(err => console.warn('Silent mode unlock in crumble failed:', err));
 
   // Play 5-10 small "grains" of sound
   const grains = 5 + Math.floor(Math.random() * 5);

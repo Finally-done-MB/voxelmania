@@ -3,7 +3,7 @@ import {
   Bot, Rocket, Cat, Skull, 
   Hammer, RefreshCw, Play, Pause, Save, 
   Download, FolderOpen, Menu, X,
-  Volume2, VolumeX, Trash2, Zap, Star, Image, BarChart3, Copy, Check, Edit2
+  Volume2, VolumeX, Trash2, Zap, Star, Image, BarChart3, Copy, Check, Edit2, Grid3x3
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { generateRobot } from '../generators/robotGenerator';
@@ -18,6 +18,7 @@ import {
   initAudio, resumeAudio, startAmbientMusic, setMusicVolume, setSfxVolume,
   playExplosionSound, playCrumbleSound 
 } from '../utils/audio';
+import { CategorySelectorModal } from './CategorySelectorModal';
 
 // Hook to detect mobile devices
 const useIsMobile = () => {
@@ -60,6 +61,7 @@ export function ControlPanel() {
     if (typeof window === 'undefined') return true;
     return window.innerWidth >= 768; // md breakpoint
   });
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [savedItems, setSavedItems] = useState<VoxelObjectData[]>([]);
 
   // Update menu state when screen size changes (e.g., device rotation from desktop to mobile)
@@ -169,7 +171,7 @@ export function ControlPanel() {
   };
 
   const handleGenerate = (seed?: number) => {
-    resumeAudio(); // Ensure audio context is ready on user interaction
+    resumeAudio().catch(err => console.warn('Audio init failed:', err)); // Ensure audio context is ready on user interaction
     let newObject: VoxelObjectData;
     switch (activeCategory) {
       case 'robot':
@@ -235,44 +237,139 @@ export function ControlPanel() {
   };
 
   const handleScrap = (mode: 'explode' | 'crumble') => {
+     console.log(`💥 handleScrap called with mode: ${mode}, isScrapped:`, isScrapped, 'currentObject:', !!currentObject);
      if (currentObject && !isScrapped) {
-       // Ensure audio is initialized on user interaction (important for mobile)
-       resumeAudio();
-       if (!isSfxMuted) {
-         // SFX functions handle their own audio context initialization
-         if (mode === 'explode') playExplosionSound();
-         else playCrumbleSound();
-       }
+       // CRITICAL FIX: Set visual state IMMEDIATELY - don't wait for audio
+       console.log(`💥 Setting scrapped state for ${mode} IMMEDIATELY`);
        setScrapped(true, mode);
+       
+       // Fire audio in background without blocking
+       if (!isSfxMuted) {
+         console.log(`💥 Starting ${mode} sound in background`);
+         // Don't await - let audio play independently
+         (async () => {
+           try {
+             resumeAudio().catch((err: any) => console.warn('Resume audio failed:', err));
+             if (mode === 'explode') {
+               playExplosionSound().catch((err: any) => console.warn('Explode sound failed:', err));
+             } else {
+               playCrumbleSound().catch((err: any) => console.warn('Crumble sound failed:', err));
+             }
+           } catch (error) {
+             console.warn(`💥 Failed to play ${mode} SFX:`, error);
+           }
+         })();
+       }
+       console.log(`💥 handleScrap completed for ${mode}`);
+     } else {
+       console.log('💥 Cannot scrap: no object or already scrapped');
      }
   };
   
-  const handleToggleMute = () => {
-    // Ensure audio is initialized (should already be, but just in case)
-    if (!(window as any).__audioCtx) {
-      initAudio();
-      startAmbientMusic();
-    }
-    // Resume audio context if suspended (needed for unmuting)
-    resumeAudio();
+  const handleToggleMute = async () => {
+    console.log('🎵 handleToggleMute called, current isMuted:', isMuted);
+    // Calculate new state before toggling
+    const willBeMuted = !isMuted;
+    console.log('🎵 Toggling mute, will be muted:', willBeMuted);
+    
+    // Toggle the state IMMEDIATELY (synchronous)
     toggleMute();
+    
+    try {
+      // Ensure audio is initialized (should already be, but just in case)
+      if (!(window as any).__audioCtx) {
+        console.log('🎵 Initializing audio context');
+        initAudio();
+      }
+      
+      // MOBILE FIX: Force resume audio context multiple times with retry
+      console.log('🎵 Resuming audio context (with retry for mobile)');
+      const audioCtx = (window as any).__audioCtx;
+      if (audioCtx) {
+        // First attempt
+        await resumeAudio();
+        console.log('🎵 After first resume, state:', audioCtx.state);
+        
+        // If still suspended, retry after short delay
+        if (audioCtx.state === 'suspended') {
+          console.log('🎵 Context still suspended, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await resumeAudio();
+          console.log('🎵 After retry, state:', audioCtx.state);
+        }
+      }
+      
+      // Set volume based on the new state
+      if (willBeMuted) {
+        console.log('🎵 Muting, setting volume to 0');
+        setMusicVolume(0);
+      } else {
+        console.log('🎵 Unmuting, AWAIT starting music before setting volume');
+        // CRITICAL FIX: AWAIT music start before setting volume
+        await startAmbientMusic();
+        setMusicVolume(0.5);
+        
+        // MOBILE FIX: Keep checking audio context state for a bit
+        setTimeout(() => {
+          const ctx = (window as any).__audioCtx;
+          console.log('🎵 Audio context state after 500ms:', ctx?.state);
+          if (ctx && ctx.state === 'suspended') {
+            console.log('🎵 Context suspended again, resuming...');
+            ctx.resume().catch(console.error);
+          }
+        }, 500);
+      }
+      console.log('🎵 handleToggleMute audio completed');
+    } catch (error) {
+      console.error('🎵 Error in handleToggleMute:', error);
+    }
   };
 
   const handleToggleSfxMute = () => {
-    resumeAudio();
+    console.log('🔊 handleToggleSfxMute called, current isSfxMuted:', isSfxMuted);
+    // Calculate new state before toggling
+    const willBeSfxMuted = !isSfxMuted;
+    console.log('🔊 Toggling SFX mute, will be muted:', willBeSfxMuted);
+    
+    // Toggle the state IMMEDIATELY
     toggleSfxMute();
+    
+    // Set volume immediately based on the new state
+    if (willBeSfxMuted) {
+      console.log('🔊 Muting SFX, setting volume to 0');
+      setSfxVolume(0);
+    } else {
+      console.log('🔊 Unmuting SFX, setting volume to 1');
+      setSfxVolume(1);
+    }
+    
+    // Handle audio initialization in background
+    (async () => {
+      try {
+        if (!(window as any).__audioCtx) {
+          console.log('🔊 Initializing audio context');
+          initAudio();
+        }
+        console.log('🔊 Resuming audio');
+        await resumeAudio();
+        console.log('🔊 handleToggleSfxMute audio completed');
+      } catch (error) {
+        console.error('🔊 Error in handleToggleSfxMute:', error);
+      }
+    })();
   };
 
   const handleSave = () => {
-    resumeAudio(); // Ensure audio context is ready on user interaction
+    resumeAudio().catch((err: any) => console.warn('Audio init failed:', err)); // Ensure audio context is ready on user interaction
     if (currentObject) {
       saveBlueprint(currentObject);
+      // Update state immediately
       setSavedItems(getSavedBlueprints());
     }
   };
   
   const handleLoad = (item: VoxelObjectData) => {
-      resumeAudio(); // Ensure audio context is ready on user interaction
+      resumeAudio().catch((err: any) => console.warn('Audio init failed:', err)); // Ensure audio context is ready on user interaction
       setCurrentObject(item);
       // Infer category from item to update UI selection
       setActiveCategory(item.category);
@@ -280,12 +377,12 @@ export function ControlPanel() {
   };
   
   const handleExport = () => {
-    resumeAudio(); // Ensure audio context is ready on user interaction
+    resumeAudio().catch(err => console.warn('Audio init failed:', err)); // Ensure audio context is ready on user interaction
     if (currentObject) exportBlueprint(currentObject);
   };
   
   const handleImportClick = () => {
-      resumeAudio(); // Ensure audio context is ready on user interaction
+      resumeAudio().catch(err => console.warn('Audio init failed:', err)); // Ensure audio context is ready on user interaction
       fileInputRef.current?.click();
   };
   
@@ -318,7 +415,7 @@ export function ControlPanel() {
   };
 
   const handleExportImage = () => {
-    resumeAudio(); // Ensure audio context is ready on user interaction
+    resumeAudio().catch(err => console.warn('Audio init failed:', err)); // Ensure audio context is ready on user interaction
     if (currentObject) {
       exportImage();
     }
@@ -338,27 +435,124 @@ export function ControlPanel() {
         onChange={handleFileChange}
       />
 
-      {/* Floating Effect Buttons - Always visible on mobile when menu is closed */}
+      {/* Mobile Floating Action Buttons - Always visible when menu is closed */}
       {isMobile && !isOpen && (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-          <button 
-            onClick={() => handleScrap('explode')}
-            className="p-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-full border border-red-500/50 transition-all active:scale-95 shadow-lg"
-            disabled={isScrapped}
-            title="Explode"
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 50 }}>
+          {/* Generate FAB - Bottom Center (Primary Action) */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              resumeAudio().catch(err => console.warn('Audio init failed:', err));
+              handleGenerate();
+            }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full shadow-lg shadow-emerald-900/50 flex flex-col items-center justify-center transition-all active:scale-95 px-6 py-3 gap-1 min-w-[120px]"
+            aria-label="Generate"
+            style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
           >
-            <Rocket size={24} />
+            <RefreshCw size={24} strokeWidth={2.5} />
+            <span className="text-xs font-bold uppercase tracking-wide">GENERATE</span>
           </button>
-          <button 
-            onClick={() => handleScrap('crumble')}
-            className="p-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-full border border-orange-500/50 transition-all active:scale-95 shadow-lg"
-            disabled={isScrapped}
-            title="Crumble"
-          >
-            <Hammer size={24} />
-          </button>
+          
+          {/* Left Side Controls - Bottom aligned like right side */}
+          <div className="absolute bottom-4 left-4 flex flex-col gap-2" style={{ pointerEvents: 'auto' }}>
+            {/* Music Toggle */}
+            <button
+              onClick={async (e) => {
+                console.log('🎵 Music button clicked - SIMPLE VERSION');
+                e.stopPropagation();
+                // CRITICAL: Keep promise alive during user interaction
+                await handleToggleMute().catch((err: any) => console.error('Music toggle error:', err));
+              }}
+              className={`w-12 h-12 rounded-full border shadow-lg flex items-center justify-center transition-all active:scale-95 ${
+                isMuted 
+                  ? 'bg-gray-800 border-gray-600 text-gray-500' 
+                  : 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+              }`}
+              aria-label={isMuted ? "Unmute Music" : "Mute Music"}
+              title={isMuted ? "Unmute Music" : "Mute Music"}
+              style={{ touchAction: 'manipulation' }}
+            >
+              {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+            </button>
+            
+            {/* SFX Toggle */}
+            <button
+              onClick={(e) => {
+                console.log('🔊 SFX button clicked - SIMPLE VERSION');
+                e.stopPropagation();
+                handleToggleSfxMute();
+              }}
+              className={`w-12 h-12 rounded-full border shadow-lg flex items-center justify-center transition-all active:scale-95 ${
+                isSfxMuted 
+                  ? 'bg-gray-800 border-gray-600 text-gray-500' 
+                  : 'bg-orange-500/20 border-orange-500/50 text-orange-400'
+              }`}
+              aria-label={isSfxMuted ? "Enable SFX" : "Disable SFX"}
+              title={isSfxMuted ? "Enable SFX" : "Disable SFX"}
+              style={{ touchAction: 'manipulation' }}
+            >
+              <Zap size={20} className={isSfxMuted ? 'opacity-50' : ''} />
+            </button>
+            
+            {/* Category Selector */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resumeAudio().catch(err => console.warn('Audio init failed:', err));
+                setIsCategoryModalOpen(true);
+              }}
+              className="w-12 h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-full border border-gray-600 shadow-lg flex items-center justify-center transition-all active:scale-95"
+              aria-label="Select Category"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <Grid3x3 size={20} />
+            </button>
+          </div>
+          
+          {/* Floating Effect Buttons - Bottom Right (Adjusted spacing) */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-2" style={{ pointerEvents: 'auto' }}>
+            <button 
+              onClick={(e) => {
+                console.log('💥 Explode button clicked - SIMPLE VERSION');
+                e.stopPropagation();
+                handleScrap('explode');
+              }}
+              className="p-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-full border border-red-500/50 transition-all active:scale-95 shadow-lg"
+              disabled={isScrapped}
+              title="Explode"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <Rocket size={24} />
+            </button>
+            <button 
+              onClick={(e) => {
+                console.log('🔨 Crumble button clicked - SIMPLE VERSION');
+                e.stopPropagation();
+                handleScrap('crumble');
+              }}
+              className="p-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-full border border-orange-500/50 transition-all active:scale-95 shadow-lg"
+              disabled={isScrapped}
+              title="Crumble"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <Hammer size={24} />
+            </button>
+          </div>
         </div>
       )}
+      
+      {/* Category Selector Modal */}
+      <CategorySelectorModal
+        isOpen={isCategoryModalOpen}
+        activeCategory={activeCategory}
+        onSelect={(category) => {
+          setActiveCategory(category);
+          resumeAudio().catch(err => console.warn('Audio init failed:', err));
+        }}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
 
       {/* Mobile Toggle */}
       <button 
@@ -366,7 +560,7 @@ export function ControlPanel() {
             onClick={() => {
               setIsOpen(!isOpen);
               // Initialize audio on any user interaction
-              resumeAudio();
+              resumeAudio().catch(err => console.warn('Audio init failed:', err));
             }}
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -394,7 +588,7 @@ export function ControlPanel() {
               onClick={() => {
                 setActiveCategory(cat.id);
                 // Initialize audio on any user interaction
-                resumeAudio();
+                resumeAudio().catch(err => console.warn('Audio init failed:', err));
               }}
               className={`
                 flex flex-col items-center justify-center p-2 md:p-2 rounded-xl transition-all border
@@ -483,14 +677,14 @@ export function ControlPanel() {
              <span className="text-[10px] md:text-[10px] font-bold">CRUMBLE</span>
            </button>
 
-           <button 
-             onClick={() => handleScrap('explode')}
-             className="flex flex-col items-center justify-center gap-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 md:p-2 rounded-xl border border-red-500/50 transition-all active:scale-95"
-             disabled={isScrapped}
-            >
-             <Rocket size={16} className="md:w-4 md:h-4" />
-             <span className="text-[10px] md:text-[10px] font-bold">EXPLODE</span>
-           </button>
+          <button 
+            onClick={() => handleScrap('explode')}
+            className="flex flex-col items-center justify-center gap-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 md:p-2 rounded-xl border border-red-500/50 transition-all active:scale-95"
+            disabled={isScrapped}
+           >
+            <Rocket size={16} className="md:w-4 md:h-4" />
+            <span className="text-[10px] md:text-[10px] font-bold">EXPLODE</span>
+          </button>
         </div>
 
         {/* Playback Controls */}
@@ -498,7 +692,7 @@ export function ControlPanel() {
           <button 
             onClick={() => {
               // Initialize audio on any user interaction
-              resumeAudio();
+              resumeAudio().catch(err => console.warn('Audio init failed:', err));
               toggleAutoRotation();
             }}
             className="flex-1 flex items-center justify-center gap-1 md:gap-1.5 p-1.5 md:p-1.5 hover:bg-gray-700 rounded-md transition-colors"
@@ -508,7 +702,7 @@ export function ControlPanel() {
           </button>
           
           <button 
-            onClick={handleToggleMute}
+            onClick={() => handleToggleMute()}
             className={`p-1.5 md:p-1.5 rounded-md transition-colors ${isMuted ? 'text-gray-500 hover:bg-gray-700' : 'text-blue-400 bg-blue-900/30 hover:bg-blue-900/50'}`}
             title={isMuted ? "Unmute Music" : "Mute Music"}
           >
@@ -516,7 +710,7 @@ export function ControlPanel() {
           </button>
           
           <button 
-            onClick={handleToggleSfxMute}
+            onClick={() => handleToggleSfxMute()}
             className={`p-1.5 md:p-1.5 rounded-md transition-colors ${isSfxMuted ? 'text-gray-500 hover:bg-gray-700' : 'text-orange-400 bg-orange-900/30 hover:bg-orange-900/50'}`}
             title={isSfxMuted ? "Enable SFX" : "Disable SFX"}
           >
@@ -622,21 +816,21 @@ export function ControlPanel() {
                             <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  resumeAudio();
+                                  resumeAudio().catch((err: any) => console.warn('Audio init failed:', err));
                                   handleEditName(item);
                                 }}
-                                className="p-1.5 md:p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-1.5 md:p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                 title="Edit name"
                             >
                                 <Edit2 size={11} className="md:w-3 md:h-3" />
                             </button>
                             <button
                                 onClick={(e) => {
-                                  resumeAudio();
+                                  resumeAudio().catch((err: any) => console.warn('Audio init failed:', err));
                                   handleToggleFavorite(e, item.id);
                                 }}
                                 className={`p-1.5 md:p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/20 rounded-md transition-colors ${
-                                  item.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
+                                  item.isFavorite ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-50'
                                 }`}
                                 title={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
                             >
@@ -644,10 +838,10 @@ export function ControlPanel() {
                             </button>
                             <button
                                 onClick={(e) => {
-                                  resumeAudio();
+                                  resumeAudio().catch((err: any) => console.warn('Audio init failed:', err));
                                   handleDelete(e, item.id);
                                 }}
-                                className="p-1.5 md:p-2 mr-1 md:mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-1.5 md:p-2 mr-1 md:mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                 title="Delete blueprint"
                             >
                                 <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
@@ -747,21 +941,21 @@ export function ControlPanel() {
                             <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  resumeAudio();
+                                  resumeAudio().catch((err: any) => console.warn('Audio init failed:', err));
                                   handleEditName(item);
                                 }}
-                                className="p-1.5 md:p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-1.5 md:p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                 title="Edit name"
                             >
                                 <Edit2 size={11} className="md:w-3 md:h-3" />
                             </button>
                             <button
                                 onClick={(e) => {
-                                  resumeAudio();
+                                  resumeAudio().catch((err: any) => console.warn('Audio init failed:', err));
                                   handleToggleFavorite(e, item.id);
                                 }}
                                 className={`p-1.5 md:p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/20 rounded-md transition-colors ${
-                                  item.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
+                                  item.isFavorite ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-50'
                                 }`}
                                 title={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
                             >
@@ -769,10 +963,10 @@ export function ControlPanel() {
                             </button>
                             <button
                                 onClick={(e) => {
-                                  resumeAudio();
+                                  resumeAudio().catch((err: any) => console.warn('Audio init failed:', err));
                                   handleDelete(e, item.id);
                                 }}
-                                className="p-1.5 md:p-2 mr-1 md:mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-1.5 md:p-2 mr-1 md:mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                 title="Delete blueprint"
                             >
                                 <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
