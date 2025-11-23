@@ -43,7 +43,7 @@ Just visit the live demo when it's available—no installation needed! Works rig
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/simonas-fd/voxelmania.git
+   git clone https://github.com/Finally-done-MB/voxelmania.git
    cd voxelmania
    ```
 
