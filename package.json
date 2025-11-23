@@ -1,8 +1,23 @@
 {
   "name": "voxel-robots",
-  "private": true,
   "version": "0.0.0",
+  "description": "A free, open-source web application for procedurally generating and interacting with 3D voxel objects",
   "type": "module",
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/simonas-fd/voxel-robots.git"
+  },
+  "keywords": [
+    "voxel",
+    "3d",
+    "procedural-generation",
+    "three.js",
+    "react",
+    "webgl",
+    "physics",
+    "interactive"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
