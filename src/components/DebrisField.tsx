@@ -1,7 +1,10 @@
 import { useMemo, useEffect, useRef } from 'react';
 import { InstancedRigidBodies, RapierRigidBody } from '@react-three/rapier';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Voxel } from '../types';
+import { addCollisionEvent, processCollisionQueue, checkGroundImpact, startDebrisAmbient, stopDebrisAmbient } from '../utils/audio';
+import { useAppStore } from '../store/useAppStore';
 
 interface DebrisFieldProps {
   voxels: Voxel[];
@@ -10,6 +13,12 @@ interface DebrisFieldProps {
 
 export function DebrisField({ voxels, mode }: DebrisFieldProps) {
   const rigidBodies = useRef<RapierRigidBody[]>(null);
+  const { isSfxMuted } = useAppStore();
+  
+  // Track previous positions and velocities for impact detection
+  const previousPositions = useRef<Map<number, THREE.Vector3>>(new Map());
+  const previousVelocities = useRef<Map<number, THREE.Vector3>>(new Map());
+  const hasHitGround = useRef<Set<number>>(new Set()); // Track which particles have already hit ground
 
   const instances = useMemo(() => {
     return voxels.map((voxel) => ({
@@ -24,6 +33,26 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       voxels.flatMap((v) => new THREE.Color(v.color).toArray())
     );
   }, [voxels]);
+  
+  // Reset tracking when voxels change
+  useEffect(() => {
+    previousPositions.current.clear();
+    previousVelocities.current.clear();
+    hasHitGround.current.clear();
+  }, [voxels.length]);
+  
+  // Start/stop ambient debris texture
+  useEffect(() => {
+    if (isSfxMuted) {
+      stopDebrisAmbient();
+    } else {
+      startDebrisAmbient(mode === 'explode');
+    }
+    
+    return () => {
+      stopDebrisAmbient();
+    };
+  }, [isSfxMuted, mode]);
 
   useEffect(() => {
     if (!rigidBodies.current || rigidBodies.current.length === 0) return;
@@ -105,6 +134,76 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
 
     return () => clearTimeout(timeoutId);
   }, [mode, voxels]);
+
+  // Collision detection and ground impact detection using useFrame
+  useFrame((_, delta) => {
+    if (!rigidBodies.current) {
+      processCollisionQueue(isSfxMuted, delta); // Still process queue to clear it
+      return;
+    }
+
+    const currentTime = performance.now();
+
+    // Check each particle for collisions and ground impacts
+    rigidBodies.current.forEach((api, i) => {
+      if (!api || !api.isValid()) return;
+
+      try {
+        const translation = api.translation();
+        const linvel = api.linvel();
+        const currentPos = new THREE.Vector3(translation.x, translation.y, translation.z);
+        const currentVel = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
+        const velocity = currentVel.length();
+        
+        const particleId = `particle-${i}`;
+        const prevPos = previousPositions.current.get(i);
+        const prevVel = previousVelocities.current.get(i);
+
+        // Check for ground impact
+        if (!hasHitGround.current.has(i) && checkGroundImpact(currentPos.y)) {
+          // Check if particle was above ground in previous frame
+          if (prevPos && prevPos.y > -4.5) {
+            // Calculate impact velocity (how fast it was falling)
+            const impactVelocity = Math.abs(prevVel ? prevVel.y : velocity);
+            if (impactVelocity > 0.5) {
+              addCollisionEvent(impactVelocity, true, particleId);
+              hasHitGround.current.add(i);
+            }
+          }
+        }
+
+        // Check for particle-to-particle collisions using Rapier's contact pairs
+        // We'll use velocity changes as a proxy for collisions
+        if (prevVel && prevPos) {
+          const velocityChange = currentVel.clone().sub(prevVel);
+          const velocityChangeMagnitude = velocityChange.length();
+          
+          // If velocity changed significantly and particle is moving, likely a collision
+          if (velocityChangeMagnitude > 2 && velocity > 1) {
+            // Check if this is a collision (not just gravity)
+            const gravityComponent = Math.abs(velocityChange.y);
+            const horizontalChange = Math.sqrt(velocityChange.x ** 2 + velocityChange.z ** 2);
+            
+            // If horizontal velocity changed significantly, it's likely a collision
+            if (horizontalChange > 1.5 || (velocityChangeMagnitude > 3 && gravityComponent < velocityChangeMagnitude * 0.7)) {
+              // Use the magnitude of velocity change as collision velocity
+              const collisionVelocity = Math.min(velocityChangeMagnitude, velocity);
+              addCollisionEvent(collisionVelocity, false, `${particleId}-collision-${currentTime}`);
+            }
+          }
+        }
+
+        // Update tracking
+        previousPositions.current.set(i, currentPos.clone());
+        previousVelocities.current.set(i, currentVel.clone());
+      } catch (e) {
+        // Ignore errors from invalid bodies
+      }
+    });
+
+    // Process collision queue every frame (pass mute state and delta time)
+    processCollisionQueue(isSfxMuted, delta);
+  });
 
   return (
     <InstancedRigidBodies

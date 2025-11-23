@@ -206,6 +206,396 @@ const playCrumbleGrain = (offset: number) => {
   osc.stop(t + 0.15);
 };
 
+// --- Audio Pool Manager for Particle Collisions ---
+// Uses ambient granular texture + sparse prominent impacts (best practice for many particles)
+
+interface CollisionEvent {
+  velocity: number;
+  isGround: boolean;
+  timestamp: number;
+}
+
+class AudioPoolManager {
+  private collisionQueue: CollisionEvent[] = [];
+  private lastCollisionTime: Map<string, number> = new Map();
+  
+  // Configuration - Sparse sampling for prominent impacts only
+  private readonly MAX_PROMINENT_IMPACTS_PER_SECOND = 3; // Very sparse - only biggest impacts
+  private readonly MIN_VELOCITY_FOR_PROMINENT = 8; // Only play individual sounds for big impacts
+  private readonly DEBOUNCE_TIME = 200; // ms
+  private readonly GROUND_Y_THRESHOLD = -4.5;
+  
+  // Ambient granular texture (continuous, not per-collision)
+  private ambientGainNode: GainNode | null = null;
+  private ambientInterval: ReturnType<typeof setInterval> | null = null;
+  private isAmbientActive: boolean = false;
+  private activityLevel: number = 0; // 0-1, tracks particle activity
+  
+  // Explosion-specific handling
+  private isExplosionMode: boolean = false;
+  private explosionStartTime: number = 0;
+  private readonly EXPLOSION_BURST_DURATION = 0.5; // seconds - initial burst phase
+  private readonly EXPLOSION_TRANSITION_DURATION = 1.0; // seconds - transition to ambient
+  
+  // Rate limiting for prominent impacts
+  private prominentImpactsThisSecond: number = 0;
+  private secondStartTime: number = 0;
+
+  setExplosionMode(isExplosion: boolean): void {
+    this.isExplosionMode = isExplosion;
+    if (isExplosion) {
+      this.explosionStartTime = performance.now() / 1000; // Convert to seconds
+      // Immediately boost activity for explosion
+      this.activityLevel = 0.8;
+    }
+  }
+  
+  addCollision(velocity: number, isGround: boolean, particleId: string): void {
+    const now = performance.now();
+    const nowSeconds = now / 1000;
+    
+    // Update activity level (for ambient texture)
+    // Explosions get faster activity buildup
+    const activityBoost = this.isExplosionMode ? 0.05 : 0.01;
+    this.activityLevel = Math.min(1, this.activityLevel + activityBoost);
+    
+    // Debounce (shorter for explosions during burst phase)
+    const debounceTime = this.isExplosionMode && 
+      (nowSeconds - this.explosionStartTime) < this.EXPLOSION_BURST_DURATION 
+      ? this.DEBOUNCE_TIME * 0.5 
+      : this.DEBOUNCE_TIME;
+    
+    const lastTime = this.lastCollisionTime.get(particleId) || 0;
+    if (now - lastTime < debounceTime) return;
+    
+    // During explosion burst phase, lower threshold for prominent impacts
+    const timeSinceExplosion = this.isExplosionMode 
+      ? nowSeconds - this.explosionStartTime 
+      : Infinity;
+    const isInBurstPhase = timeSinceExplosion < this.EXPLOSION_BURST_DURATION;
+    const velocityThreshold = isInBurstPhase ? 5 : this.MIN_VELOCITY_FOR_PROMINENT;
+    
+    // Queue prominent impacts
+    if (velocity >= velocityThreshold) {
+      this.collisionQueue.push({
+        velocity,
+        isGround,
+        timestamp: now
+      });
+    }
+    
+    this.lastCollisionTime.set(particleId, now);
+    
+    // Clean old entries
+    if (this.lastCollisionTime.size > 1000) {
+      const cutoff = now - debounceTime * 10;
+      for (const [id, time] of this.lastCollisionTime.entries()) {
+        if (time < cutoff) this.lastCollisionTime.delete(id);
+      }
+    }
+  }
+
+  startAmbientTexture(): void {
+    if (this.isAmbientActive || !audioCtx || !compressor) return;
+    
+    this.isAmbientActive = true;
+    
+    // Create gain node for ambient texture
+    this.ambientGainNode = audioCtx.createGain();
+    this.ambientGainNode.gain.value = 0;
+    this.ambientGainNode.connect(compressor);
+    
+    // Play granular grains continuously based on activity
+    const playGrain = () => {
+      if (!audioCtx || !this.ambientGainNode || !this.isAmbientActive) return;
+      
+      // For explosions, use faster, more intense grains during burst phase
+      const timeSinceExplosion = this.isExplosionMode 
+        ? (performance.now() / 1000) - this.explosionStartTime 
+        : Infinity;
+      const isInBurstPhase = timeSinceExplosion < this.EXPLOSION_BURST_DURATION;
+      
+      // Activity determines grain frequency and volume
+      // Explosions get faster grains during burst
+      const baseInterval = isInBurstPhase ? 30 : 50;
+      const maxInterval = isInBurstPhase ? 100 : 200;
+      const grainInterval = Math.max(baseInterval, maxInterval - this.activityLevel * (maxInterval - baseInterval));
+      
+      // Higher volume during explosion burst
+      const baseVolume = isInBurstPhase ? 0.05 : 0.02;
+      const maxVolume = isInBurstPhase ? 0.15 : 0.1;
+      const grainVolume = baseVolume + this.activityLevel * (maxVolume - baseVolume);
+      
+      playAmbientCollisionGrain(grainVolume, isInBurstPhase);
+      
+      this.ambientInterval = setTimeout(playGrain, grainInterval);
+    };
+    
+    // Faster fade-in for explosions
+    const fadeTime = this.isExplosionMode ? 0.1 : 0.5;
+    if (this.ambientGainNode) {
+      const now = audioCtx.currentTime;
+      this.ambientGainNode.gain.setValueAtTime(0, now);
+      this.ambientGainNode.gain.linearRampToValueAtTime(1, now + fadeTime);
+    }
+    
+    playGrain();
+  }
+  
+  stopAmbientTexture(): void {
+    if (this.ambientInterval) {
+      clearTimeout(this.ambientInterval);
+      this.ambientInterval = null;
+    }
+    
+    if (this.ambientGainNode && audioCtx) {
+      const now = audioCtx.currentTime;
+      this.ambientGainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+      setTimeout(() => {
+        if (this.ambientGainNode) {
+          this.ambientGainNode.disconnect();
+          this.ambientGainNode = null;
+        }
+      }, 300);
+    }
+    
+    this.isAmbientActive = false;
+    this.activityLevel = 0;
+  }
+  
+  updateActivityLevel(deltaTime: number): void {
+    // Decay activity level over time
+    this.activityLevel = Math.max(0, this.activityLevel - deltaTime * 0.5);
+  }
+
+  processQueue(isMuted: boolean = false): void {
+    if (!audioCtx || !compressor || isMuted) {
+      this.collisionQueue = [];
+      return;
+    }
+    
+    const now = performance.now();
+    const nowSeconds = now / 1000;
+    
+    // Update rate limiting
+    if (now - this.secondStartTime > 1000) {
+      this.prominentImpactsThisSecond = 0;
+      this.secondStartTime = now;
+    }
+    
+    if (this.collisionQueue.length === 0) return;
+    
+    // Sort by velocity (highest first)
+    this.collisionQueue.sort((a, b) => b.velocity - a.velocity);
+    
+    // During explosion burst, allow more prominent impacts
+    const timeSinceExplosion = this.isExplosionMode 
+      ? nowSeconds - this.explosionStartTime 
+      : Infinity;
+    const isInBurstPhase = timeSinceExplosion < this.EXPLOSION_BURST_DURATION;
+    const maxImpacts = isInBurstPhase ? 8 : this.MAX_PROMINENT_IMPACTS_PER_SECOND; // More during burst
+    
+    // Play prominent impact sounds
+    for (const event of this.collisionQueue) {
+      if (this.prominentImpactsThisSecond >= maxImpacts) break;
+      
+      // Play prominent impact sound
+      if (event.isGround) {
+        playGroundImpactSound(event.velocity);
+      } else {
+        playParticleCollisionSound(event.velocity);
+      }
+      
+      this.prominentImpactsThisSecond++;
+    }
+    
+    // Clear processed events
+    this.collisionQueue = [];
+  }
+  
+  checkGroundImpact(y: number): boolean {
+    return y <= this.GROUND_Y_THRESHOLD;
+  }
+}
+
+// Ambient collision grain (continuous texture)
+const playAmbientCollisionGrain = (volume: number, isExplosionBurst: boolean = false) => {
+  if (!audioCtx || !compressor) return;
+  
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  // For explosions, use wider frequency range and more energy
+  if (isExplosionBurst) {
+    osc.type = 'sawtooth'; // Richer harmonics for explosions
+    osc.frequency.value = 150 + Math.random() * 600; // 150-750 Hz (wider range)
+  } else {
+    osc.type = 'square';
+    osc.frequency.value = 200 + Math.random() * 400; // 200-600 Hz
+  }
+  
+  // Slightly longer grains for explosions
+  const duration = isExplosionBurst 
+    ? 0.04 + Math.random() * 0.04  // 40-80ms
+    : 0.03 + Math.random() * 0.03;  // 30-60ms
+    
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(volume, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  
+  // Filter: wider bandpass for explosions
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  if (isExplosionBurst) {
+    filter.frequency.value = 200 + Math.random() * 500; // 200-700 Hz
+    filter.Q.value = 2; // Less sharp for more energy
+  } else {
+    filter.frequency.value = 300 + Math.random() * 300;
+    filter.Q.value = 3;
+  }
+  
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(compressor);
+  
+  osc.start(t);
+  osc.stop(t + duration + 0.01);
+};
+
+const audioPoolManager = new AudioPoolManager();
+
+// Export for use in DebrisField
+export const addCollisionEvent = (velocity: number, isGround: boolean, particleId: string) => {
+  audioPoolManager.addCollision(velocity, isGround, particleId);
+};
+
+export const processCollisionQueue = (isMuted: boolean = false, deltaTime: number = 0.016) => {
+  audioPoolManager.updateActivityLevel(deltaTime);
+  audioPoolManager.processQueue(isMuted);
+};
+
+export const checkGroundImpact = (y: number): boolean => {
+  return audioPoolManager.checkGroundImpact(y);
+};
+
+export const startDebrisAmbient = (isExplosion: boolean = false) => {
+  audioPoolManager.setExplosionMode(isExplosion);
+  audioPoolManager.startAmbientTexture();
+};
+
+export const stopDebrisAmbient = () => {
+  audioPoolManager.setExplosionMode(false);
+  audioPoolManager.stopAmbientTexture();
+};
+
+// --- SFX: Particle Collision ---
+
+const playParticleCollisionSound = (velocity: number) => {
+  if (!audioCtx || !compressor) return;
+  resumeAudio();
+
+  const t = audioCtx.currentTime;
+  
+  // Scale volume and pitch based on velocity
+  const velocityFactor = Math.min(velocity / 20, 1); // Normalize to 0-1
+  const volume = 0.05 + velocityFactor * 0.15; // 0.05 to 0.2
+  const pitchVariation = 0.8 + Math.random() * 0.4; // ±20% variation
+  
+  // Higher frequency for particle-to-particle (more "clicky")
+  const baseFreq = 300 + velocityFactor * 400; // 300-700 Hz
+  const freq = baseFreq * pitchVariation;
+  
+  // Short click/thud sound
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  osc.type = 'square';
+  osc.frequency.value = freq;
+  
+  // Very short envelope (50-100ms)
+  const duration = 0.05 + velocityFactor * 0.05;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(volume, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  
+  // Bandpass filter for material-like sound
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = freq;
+  filter.Q.value = 2;
+  
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(compressor);
+  
+  osc.start(t);
+  osc.stop(t + duration + 0.01);
+};
+
+// --- SFX: Ground Impact ---
+
+const playGroundImpactSound = (velocity: number) => {
+  if (!audioCtx || !compressor) return;
+  resumeAudio();
+
+  const t = audioCtx.currentTime;
+  
+  // Scale volume and pitch based on velocity
+  const velocityFactor = Math.min(velocity / 20, 1); // Normalize to 0-1
+  const volume = 0.08 + velocityFactor * 0.2; // 0.08 to 0.28 (louder than collisions)
+  const pitchVariation = 0.85 + Math.random() * 0.3; // ±15% variation
+  
+  // Lower frequency for ground impacts (more "thud")
+  const baseFreq = 150 + velocityFactor * 200; // 150-350 Hz
+  const freq = baseFreq * pitchVariation;
+  
+  // Thud sound with slight low-frequency emphasis
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  osc.type = 'sawtooth'; // Richer harmonic content
+  osc.frequency.value = freq;
+  
+  // Slightly longer envelope (80-150ms)
+  const duration = 0.08 + velocityFactor * 0.07;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(volume, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  
+  // Low-pass filter for deeper, more muffled sound
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 400 + velocityFactor * 300; // 400-700 Hz
+  filter.Q.value = 1;
+  
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(compressor);
+  
+  osc.start(t);
+  osc.stop(t + duration + 0.01);
+  
+  // Add subtle sub-bass for larger impacts
+  if (velocityFactor > 0.5) {
+    const sub = audioCtx.createOscillator();
+    const subGain = audioCtx.createGain();
+    
+    sub.type = 'sine';
+    sub.frequency.value = 60 + velocityFactor * 40; // 60-100 Hz
+    
+    subGain.gain.setValueAtTime(0, t);
+    subGain.gain.linearRampToValueAtTime(volume * 0.3, t + 0.01);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + duration * 1.5);
+    
+    sub.connect(subGain);
+    subGain.connect(compressor);
+    
+    sub.start(t);
+    sub.stop(t + duration * 1.5);
+  }
+};
+
 // --- Utilities ---
 
 function createReverbImpulse(duration: number, decay: number) {
