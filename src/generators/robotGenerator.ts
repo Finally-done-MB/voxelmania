@@ -1,109 +1,174 @@
-import type { Voxel, VoxelObjectData } from '../types';
-import { getRandomPalette, type Palette } from '../utils/palettes';
-
-class VoxelBuilder {
-  voxels: Voxel[] = [];
-  palette: Palette;
-
-  constructor(palette: Palette) {
-    this.palette = palette;
-  }
-
-  addVoxel(x: number, y: number, z: number, color: string) {
-    // check if exists? simple generator might not need it if math is clean
-    this.voxels.push({
-      id: `${x}-${y}-${z}`,
-      x, y, z, color
-    });
-  }
-
-  addBox(startX: number, startY: number, startZ: number, w: number, h: number, d: number, color: string) {
-    for (let x = startX; x < startX + w; x++) {
-      for (let y = startY; y < startY + h; y++) {
-        for (let z = startZ; z < startZ + d; z++) {
-          this.addVoxel(x, y, z, color);
-        }
-      }
-    }
-  }
-  
-  addSymmetricBox(startX: number, startY: number, startZ: number, w: number, h: number, d: number, color: string, axisX = 0) {
-      this.addBox(startX, startY, startZ, w, h, d, color);
-      // Mirror across X
-      const mirrorStartX = axisX - (startX + w - axisX); 
-      this.addBox(mirrorStartX, startY, startZ, w, h, d, color);
-  }
-}
-
-function randomRange(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+import type { VoxelObjectData } from '../types';
+import { getRandomPalette } from '../utils/palettes';
+import { VoxelBuilder, randomRange, randomChoice, randomBoolean } from '../utils/voxelBuilder';
+import {
+  generateHand,
+  generateElbow,
+  generateWeapon,
+  generateTool,
+  generateRobotHead,
+  generateRobotTorso,
+  generateRobotLeg
+} from '../utils/components';
 
 export function generateRobot(): VoxelObjectData {
-  const palette = getRandomPalette();
+  const palette = getRandomPalette('robot');
   const builder = new VoxelBuilder(palette);
 
+  // Randomize proportions
+  const isTall = randomBoolean(0.3);
+  const isWide = randomBoolean(0.2);
+  const isThin = randomBoolean(0.2);
+
   // --- Legs ---
-  const legHeight = randomRange(4, 8);
-  const legWidth = randomRange(2, 3);
+  const legHeight = isTall ? randomRange(8, 12) : randomRange(4, 8);
+  const legWidth = isWide ? randomRange(3, 4) : randomRange(2, 3);
   const legSpacing = randomRange(1, 3);
   
-  // Left Leg
-  builder.addBox(-legSpacing - legWidth, 0, -1, legWidth, legHeight, 3, palette.secondary);
-  // Right Leg
-  builder.addBox(legSpacing, 0, -1, legWidth, legHeight, 3, palette.secondary);
-
-  // Feet
-  builder.addBox(-legSpacing - legWidth, 0, 0, legWidth, 1, 4, palette.dark);
-  builder.addBox(legSpacing, 0, 0, legWidth, 1, 4, palette.dark);
-
+  const leftLegX = -legSpacing - legWidth;
+  const rightLegX = legSpacing;
+  const legZ = -1;
+  
+  // Left Leg (detailed)
+  generateRobotLeg(builder, 'left', leftLegX + legWidth/2, 0, legZ + legWidth/2, legHeight, palette);
+  // Right Leg (detailed)
+  generateRobotLeg(builder, 'right', rightLegX + legWidth/2, 0, legZ + legWidth/2, legHeight, palette);
 
   // --- Torso ---
   const torsoY = legHeight;
-  const torsoWidth = (legSpacing + legWidth) * 2 + randomRange(0, 2);
-  const torsoHeight = randomRange(5, 9);
-  const torsoDepth = randomRange(3, 5);
-  const torsoX = -torsoWidth / 2;
-  const torsoZ = -torsoDepth / 2;
+  const torsoWidth = (legSpacing + legWidth) * 2 + (isWide ? randomRange(2, 4) : randomRange(0, 2));
+  const torsoHeight = isTall ? randomRange(7, 11) : randomRange(5, 9);
+  const torsoDepth = isThin ? randomRange(2, 4) : randomRange(3, 5);
+  const torsoX = 0;
+  const torsoZ = 0;
 
-  builder.addBox(torsoX, torsoY, torsoZ, torsoWidth, torsoHeight, torsoDepth, palette.primary);
-  
-  // Torso Details (Core)
-  builder.addBox(torsoX + 2, torsoY + 2, torsoZ - 1, torsoWidth - 4, torsoHeight - 4, 1, palette.accent);
-
+  generateRobotTorso(builder, torsoX, torsoY, torsoZ, torsoWidth, torsoHeight, torsoDepth, palette);
 
   // --- Head ---
-  const headWidth = randomRange(3, torsoWidth - 2);
-  const headHeight = randomRange(3, 5);
-  const headDepth = randomRange(3, 5);
   const headY = torsoY + torsoHeight;
-  const headX = -headWidth / 2;
-  const headZ = -headDepth / 2;
+  const headX = 0;
+  const headZ = 0;
 
   // Neck
   builder.addBox(-1, headY - 1, -1, 2, 1, 2, palette.detail);
   
-  // Head Base
-  builder.addBox(headX, headY, headZ, headWidth, headHeight, headDepth, palette.primary);
-  
-  // Eyes
-  builder.addBox(headX + 1, headY + 2, headZ + headDepth, headWidth - 2, 1, 1, palette.accent);
+  // Varied head types
+  const headType = randomChoice(['humanoid', 'sensor', 'visor', 'antenna']);
+  generateRobotHead(builder, headType, headX, headY, headZ, palette);
 
-
-  // --- Arms ---
+  // --- Arms with detailed joints ---
   const armWidth = 2;
-  const armHeight = randomRange(4, torsoHeight);
+  const upperArmLength = randomRange(3, 5);
+  const forearmLength = randomRange(3, 5);
+  const totalArmLength = upperArmLength + forearmLength;
   const armY = torsoY + torsoHeight - 2;
   
   // Left Arm
-  builder.addBox(torsoX - armWidth - 1, armY - armHeight, -1, armWidth, armHeight, 3, palette.secondary);
+  const leftArmX = -torsoWidth/2 - armWidth - 1;
+  // Upper arm
+  builder.addBox(leftArmX, armY - upperArmLength, -1, armWidth, upperArmLength, 3, palette.secondary);
+  // Elbow
+  generateElbow(builder, 'left', leftArmX + armWidth/2, armY - upperArmLength, 0, palette);
+  // Forearm
+  builder.addBox(leftArmX, armY - upperArmLength - forearmLength - 1, -1, armWidth, forearmLength, 3, palette.secondary);
+  // Wrist
+  builder.addBox(leftArmX - 1, armY - totalArmLength - 1, -1, armWidth + 2, 1, 3, palette.detail);
+  
   // Right Arm
-  builder.addBox(torsoX + torsoWidth + 1, armY - armHeight, -1, armWidth, armHeight, 3, palette.secondary);
+  const rightArmX = torsoWidth/2 + 1;
+  // Upper arm
+  builder.addBox(rightArmX, armY - upperArmLength, -1, armWidth, upperArmLength, 3, palette.secondary);
+  // Elbow
+  generateElbow(builder, 'right', rightArmX + armWidth/2, armY - upperArmLength, 0, palette);
+  // Forearm
+  builder.addBox(rightArmX, armY - upperArmLength - forearmLength - 1, -1, armWidth, forearmLength, 3, palette.secondary);
+  // Wrist
+  builder.addBox(rightArmX - 1, armY - totalArmLength - 1, -1, armWidth + 2, 1, 3, palette.detail);
 
   // Shoulders
-  builder.addBox(torsoX - armWidth - 2, armY, -2, armWidth + 2, 2, 5, palette.detail);
-  builder.addBox(torsoX + torsoWidth, armY, -2, armWidth + 2, 2, 5, palette.detail);
+  builder.addBox(leftArmX - 2, armY, -2, armWidth + 2, 2, 5, palette.detail);
+  builder.addBox(rightArmX, armY, -2, armWidth + 2, 2, 5, palette.detail);
 
+  // --- Tools/Weapons (60% chance) ---
+  if (randomBoolean(0.6)) {
+    const hasLeftTool = randomBoolean(0.7);
+    const hasRightTool = randomBoolean(0.7);
+    
+    const handY = armY - totalArmLength - 1;
+    const handZ = 0;
+    
+    if (hasLeftTool) {
+      if (randomBoolean(0.5)) {
+        // Weapon
+        const weaponType = randomChoice(['blade', 'gun', 'plasma', 'drill', 'saw']);
+        generateWeapon(builder, weaponType, leftArmX + armWidth/2, handY, handZ + 3, palette);
+      } else {
+        // Tool
+        const toolType = randomChoice(['pliers', 'wrench', 'cutter', 'claw']);
+        generateTool(builder, toolType, leftArmX + armWidth/2, handY, handZ + 3, palette);
+      }
+    } else {
+      // Regular hand
+      generateHand(builder, 'left', leftArmX + armWidth/2, handY, handZ + 2, palette);
+    }
+    
+    if (hasRightTool) {
+      if (randomBoolean(0.5)) {
+        // Weapon
+        const weaponType = randomChoice(['blade', 'gun', 'plasma', 'drill', 'saw']);
+        generateWeapon(builder, weaponType, rightArmX + armWidth/2, handY, handZ + 3, palette);
+      } else {
+        // Tool
+        const toolType = randomChoice(['pliers', 'wrench', 'cutter', 'claw']);
+        generateTool(builder, toolType, rightArmX + armWidth/2, handY, handZ + 3, palette);
+      }
+    } else {
+      // Regular hand
+      generateHand(builder, 'right', rightArmX + armWidth/2, handY, handZ + 2, palette);
+    }
+  } else {
+    // Both hands
+    const handY = armY - totalArmLength - 1;
+    generateHand(builder, 'left', leftArmX + armWidth/2, handY, 0, palette);
+    generateHand(builder, 'right', rightArmX + armWidth/2, handY, 0, palette);
+  }
+
+  // --- Optional Backpack/Jetpack (30% chance) ---
+  if (randomBoolean(0.3)) {
+    const backpackWidth = randomRange(3, 5);
+    const backpackHeight = randomRange(4, 6);
+    builder.addBox(-backpackWidth/2, torsoY + 1, -torsoDepth/2 - 2, backpackWidth, backpackHeight, 2, palette.secondary);
+    // Jetpack details
+    if (randomBoolean(0.5)) {
+      builder.addBox(-1, torsoY + backpackHeight + 1, -torsoDepth/2 - 2, 2, 2, 2, palette.accent);
+      builder.addBox(1, torsoY + backpackHeight + 1, -torsoDepth/2 - 2, 2, 2, 2, palette.accent);
+    }
+  }
+
+  // --- Optional Shoulder-mounted Weapons (20% chance) ---
+  if (randomBoolean(0.2)) {
+    const shoulderWeaponType = randomChoice(['gun', 'plasma', 'missile']);
+    if (shoulderWeaponType === 'missile') {
+      // Missile pod
+      builder.addBox(leftArmX - 2, armY + 2, -1, 2, 2, 4, palette.accent);
+      builder.addBox(rightArmX + armWidth, armY + 2, -1, 2, 2, 4, palette.accent);
+    } else {
+      generateWeapon(builder, shoulderWeaponType, leftArmX - 1, armY + 2, 0, palette);
+      generateWeapon(builder, shoulderWeaponType, rightArmX + armWidth + 1, armY + 2, 0, palette);
+    }
+  }
+
+  // --- Additional torso details ---
+  // Chest panel
+  if (randomBoolean(0.6)) {
+    builder.addBox(-2, torsoY + torsoHeight/2, -torsoDepth/2 - 1, 4, 3, 1, palette.accent);
+  }
+  
+  // Side ports
+  if (randomBoolean(0.5)) {
+    builder.addBox(-torsoWidth/2 - 1, torsoY + 2, -1, 1, 2, 2, palette.detail);
+    builder.addBox(torsoWidth/2, torsoY + 2, -1, 1, 2, 2, palette.detail);
+  }
 
   return {
     id: crypto.randomUUID(),
