@@ -1,9 +1,13 @@
 import type { VoxelObjectData } from '../types';
 import { getRandomPalette, type Palette } from '../utils/palettes';
-import { VoxelBuilder, randomRange, randomChoice, randomBoolean } from '../utils/voxelBuilder';
+import { VoxelBuilder, randomRange, randomChoice, randomBoolean, setSeed, generateSeed } from '../utils/voxelBuilder';
 import { addShipDecorativeDetails, addCoatOfArmsToWing } from '../utils/components';
 
-export function generateSpaceship(): VoxelObjectData {
+export function generateSpaceship(seed?: number): VoxelObjectData {
+  // Set seed if provided, otherwise generate new one
+  const actualSeed = seed !== undefined ? seed : generateSeed();
+  setSeed(actualSeed);
+  
   const palette = getRandomPalette('spaceship');
   const builder = new VoxelBuilder(palette);
 
@@ -68,10 +72,11 @@ export function generateSpaceship(): VoxelObjectData {
 
   return {
     id: crypto.randomUUID(),
-    name: `Ship ${Math.floor(Math.random() * 1000)}`,
+    name: `Ship ${randomRange(1, 999)}`,
     category: 'spaceship',
     createdAt: Date.now(),
-    voxels: builder.voxels
+    voxels: builder.voxels,
+    seed: actualSeed
   };
 }
 

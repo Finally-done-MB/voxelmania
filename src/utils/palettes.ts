@@ -193,14 +193,16 @@ export const SPACESHIP_PALETTES: Palette[] = [
   }
 ];
 
+import { randomChoice } from './seededRNG';
+
 export function getRandomPalette(category?: 'robot' | 'animal' | 'monster' | 'spaceship'): Palette {
   if (category === 'animal') {
-    return ANIMAL_PALETTES[Math.floor(Math.random() * ANIMAL_PALETTES.length)];
+    return randomChoice(ANIMAL_PALETTES);
   } else if (category === 'monster') {
-    return MONSTER_PALETTES[Math.floor(Math.random() * MONSTER_PALETTES.length)];
+    return randomChoice(MONSTER_PALETTES);
   } else if (category === 'spaceship') {
-    return SPACESHIP_PALETTES[Math.floor(Math.random() * SPACESHIP_PALETTES.length)];
+    return randomChoice(SPACESHIP_PALETTES);
   } else {
-    return ROBOT_PALETTES[Math.floor(Math.random() * ROBOT_PALETTES.length)];
+    return randomChoice(ROBOT_PALETTES);
   }
 }

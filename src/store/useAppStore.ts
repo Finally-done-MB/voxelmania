@@ -11,6 +11,7 @@ interface AppState {
   isExporting: boolean; // Hide floor grid during export
   
   setCurrentObject: (object: VoxelObjectData) => void;
+  updateCurrentObjectName: (name: string) => void;
   toggleAutoRotation: () => void;
   setScrapped: (scrapped: boolean, mode?: 'explode' | 'crumble') => void;
   toggleMute: () => void;
@@ -32,6 +33,16 @@ export const useAppStore = create<AppState>((set) => ({
     isScrapped: false, 
     scrapMode: null,
     isAutoRotating: true // Always start rotating when new object is generated
+  }),
+  
+  updateCurrentObjectName: (name) => set((state) => {
+    if (!state.currentObject) return state;
+    return {
+      currentObject: {
+        ...state.currentObject,
+        name: name.trim() || state.currentObject.name
+      }
+    };
   }),
   
   toggleAutoRotation: () => set((state) => ({ isAutoRotating: !state.isAutoRotating })),

@@ -120,14 +120,5 @@ export class VoxelBuilder {
   }
 }
 
-export function randomRange(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-export function randomChoice<T>(items: T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-export function randomBoolean(probability: number = 0.5): boolean {
-  return Math.random() < probability;
-}
+// Re-export seeded RNG functions
+export { randomRange, randomChoice, randomBoolean, setSeed, generateSeed, getSeedString } from './seededRNG';

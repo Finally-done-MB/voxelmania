@@ -10,7 +10,11 @@ export function saveBlueprint(object: VoxelObjectData) {
 
 export function getSavedBlueprints(): VoxelObjectData[] {
   const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
+  const blueprints = data ? JSON.parse(data) : [];
+  // Sort by createdAt descending (newest first)
+  return blueprints.sort((a: VoxelObjectData, b: VoxelObjectData) => 
+    (b.createdAt || 0) - (a.createdAt || 0)
+  );
 }
 
 export function deleteBlueprint(blueprintId: string) {
@@ -31,6 +35,7 @@ export function toggleFavorite(blueprintId: string) {
 }
 
 export function getFavoriteBlueprints(): VoxelObjectData[] {
+  // getSavedBlueprints already sorts by date, so favorites will be sorted too
   return getSavedBlueprints().filter(item => item.isFavorite);
 }
 

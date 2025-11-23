@@ -1,6 +1,6 @@
 import type { VoxelObjectData } from '../types';
 import { getRandomPalette, type Palette } from '../utils/palettes';
-import { VoxelBuilder, randomRange, randomChoice, randomBoolean } from '../utils/voxelBuilder';
+import { VoxelBuilder, randomRange, randomChoice, randomBoolean, setSeed, generateSeed } from '../utils/voxelBuilder';
 import {
   generateQuadrupedBody,
   generateBipedBody,
@@ -14,12 +14,16 @@ import {
   generateFins
 } from '../utils/components';
 
-export function generateAnimal(): VoxelObjectData {
+export function generateAnimal(seed?: number): VoxelObjectData {
+  // Set seed if provided, otherwise generate new one
+  const actualSeed = seed !== undefined ? seed : generateSeed();
+  setSeed(actualSeed);
+  
   const palette = getRandomPalette('animal');
   const builder = new VoxelBuilder(palette);
 
   // 60% recognizable, 40% weird (with randomization)
-  const weirdness = Math.random();
+  const weirdness = randomRange(0, 100) / 100; // Use seeded RNG
   const isRecognizable = weirdness < 0.6 || (weirdness < 0.8 && randomBoolean(0.3));
 
   if (isRecognizable) {
@@ -89,10 +93,11 @@ export function generateAnimal(): VoxelObjectData {
 
   return {
     id: crypto.randomUUID(),
-    name: `Critter ${Math.floor(Math.random() * 1000)}`,
+    name: `Critter ${randomRange(1, 999)}`,
     category: 'animal',
     createdAt: Date.now(),
-    voxels: builder.voxels
+    voxels: builder.voxels,
+    seed: actualSeed
   };
 }
 

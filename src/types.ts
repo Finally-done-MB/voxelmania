@@ -13,6 +13,7 @@ export interface VoxelObjectData {
   voxels: Voxel[];
   createdAt: number;
   isFavorite?: boolean; // Optional for backward compatibility
+  seed?: number; // Seed used for generation (for reproducibility)
 }
 
 export type GeneratorCategory = VoxelObjectData['category'];

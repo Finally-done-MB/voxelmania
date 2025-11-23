@@ -1,8 +1,12 @@
 import type { VoxelObjectData } from '../types';
 import { getRandomPalette, type Palette } from '../utils/palettes';
-import { VoxelBuilder, randomRange, randomChoice, randomBoolean } from '../utils/voxelBuilder';
+import { VoxelBuilder, randomRange, randomChoice, randomBoolean, setSeed, generateSeed } from '../utils/voxelBuilder';
 
-export function generateMonster(): VoxelObjectData {
+export function generateMonster(seed?: number): VoxelObjectData {
+  // Set seed if provided, otherwise generate new one
+  const actualSeed = seed !== undefined ? seed : generateSeed();
+  setSeed(actualSeed);
+  
   const palette = getRandomPalette('monster');
   const builder = new VoxelBuilder(palette);
 
@@ -25,10 +29,11 @@ export function generateMonster(): VoxelObjectData {
 
   return {
     id: crypto.randomUUID(),
-    name: `Monster ${Math.floor(Math.random() * 1000)}`,
+    name: `Monster ${randomRange(1, 999)}`,
     category: 'monster',
     createdAt: Date.now(),
-    voxels: builder.voxels
+    voxels: builder.voxels,
+    seed: actualSeed
   };
 }
 
@@ -236,7 +241,7 @@ function generateAmorphousMonster(builder: VoxelBuilder, palette: Palette) {
     const y = centerY + randomRange(-baseSize, baseSize);
     const z = centerZ + randomRange(-baseSize, baseSize);
     
-    const color = Math.random() > 0.5 ? palette.secondary : palette.accent;
+    const color = randomBoolean(0.5) ? palette.secondary : palette.accent;
     builder.addBox(x, y, z, w, h, d, color);
   }
 

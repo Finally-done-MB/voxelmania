@@ -5,6 +5,7 @@ import { Physics, CuboidCollider } from '@react-three/rapier';
 import { StudioEnvironment } from './components/StudioEnvironment';
 import { VoxelRenderer } from './components/VoxelRenderer';
 import { ControlPanel } from './components/ControlPanel';
+import { ObjectNameOverlay } from './components/ObjectNameOverlay';
 import { useAppStore } from './store/useAppStore';
 import { Group, Box3, Vector3, PerspectiveCamera } from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -160,6 +161,7 @@ function App() {
       <ControlPanel />
       
       <div className="absolute inset-0 md:left-80 z-0 bg-[#202025]">
+        <ObjectNameOverlay />
         <Canvas 
           shadows 
           camera={{ position: [20, 20, 20], fov: 40 }} 

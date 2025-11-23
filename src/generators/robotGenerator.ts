@@ -1,6 +1,6 @@
 import type { VoxelObjectData } from '../types';
 import { getRandomPalette } from '../utils/palettes';
-import { VoxelBuilder, randomRange, randomChoice, randomBoolean } from '../utils/voxelBuilder';
+import { VoxelBuilder, randomRange, randomChoice, randomBoolean, setSeed, generateSeed, getSeedString } from '../utils/voxelBuilder';
 import {
   generateHand,
   generateElbow,
@@ -16,7 +16,11 @@ import {
   generateHipTool
 } from '../utils/components';
 
-export function generateRobot(): VoxelObjectData {
+export function generateRobot(seed?: number): VoxelObjectData {
+  // Set seed if provided, otherwise generate new one
+  const actualSeed = seed !== undefined ? seed : generateSeed();
+  setSeed(actualSeed);
+  
   const palette = getRandomPalette('robot');
   const builder = new VoxelBuilder(palette);
 
@@ -189,9 +193,10 @@ export function generateRobot(): VoxelObjectData {
 
   return {
     id: crypto.randomUUID(),
-    name: `Robot ${Math.floor(Math.random() * 1000)}`,
+    name: `Robot ${randomRange(1, 999)}`,
     category: 'robot',
     createdAt: Date.now(),
-    voxels: builder.voxels
+    voxels: builder.voxels,
+    seed: actualSeed
   };
 }

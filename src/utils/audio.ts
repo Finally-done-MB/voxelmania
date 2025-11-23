@@ -4,6 +4,7 @@ let masterGain: GainNode | null = null;
 let compressor: DynamicsCompressorNode | null = null;
 let reverbNode: ConvolverNode | null = null;
 let ambientInterval: ReturnType<typeof setInterval> | null = null;
+let activeOscillators: OscillatorNode[] = []; // Track all active oscillators for immediate stop
 
 // Configuration
 const FADE_TIME = 2.0; // Seconds for fade in/out
@@ -18,6 +19,8 @@ export const initAudio = () => {
 
   const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
   audioCtx = new AudioContextClass();
+  // Store reference for checking state
+  (window as any).__audioCtx = audioCtx;
 
   // Master Chain: Source -> Compressor -> MasterGain -> Reverb -> Destination
   masterGain = audioCtx.createGain();
@@ -53,13 +56,25 @@ export const resumeAudio = async () => {
   if (audioCtx?.state === 'suspended') {
     await audioCtx.resume();
   }
+  // After resuming, start music if not muted
+  // Check mute state - if undefined, default to false (not muted)
+  const isMuted = (window as any).__isMuted !== undefined ? (window as any).__isMuted : false;
+  if (!isMuted && audioCtx?.state === 'running') {
+    startAmbientMusic();
+  }
 };
 
 // --- Generative Ambient Music ---
 
 export const startAmbientMusic = () => {
-  if (ambientInterval) return;
+  if (ambientInterval) {
+    clearTimeout(ambientInterval);
+    ambientInterval = null;
+  }
   if (!audioCtx) initAudio();
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(console.error);
+  }
 
   // Play a note every 2-4 seconds
   const scheduleNextNote = () => {
@@ -72,9 +87,34 @@ export const startAmbientMusic = () => {
 };
 
 export const stopAmbientMusic = () => {
+  // Stop the interval immediately
   if (ambientInterval) {
     clearTimeout(ambientInterval);
     ambientInterval = null;
+  }
+  // Stop all currently playing oscillators immediately
+  activeOscillators.forEach(osc => {
+    try {
+      osc.stop();
+      osc.disconnect();
+    } catch (e) {
+      // Oscillator might already be stopped
+    }
+  });
+  activeOscillators = [];
+  
+  // Also fade out master gain quickly
+  if (masterGain && audioCtx) {
+    const now = audioCtx.currentTime;
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.linearRampToValueAtTime(0, now + 0.05); // Very quick fade (50ms)
+    // Reset gain after fade
+    setTimeout(() => {
+      if (masterGain) {
+        masterGain.gain.setValueAtTime(0.5, audioCtx?.currentTime || 0);
+      }
+    }, 100);
   }
 };
 
@@ -83,6 +123,9 @@ const playAmbientNote = () => {
 
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
+  
+  // Track this oscillator for immediate stopping
+  activeOscillators.push(osc);
   
   // Pick a random note from the scale
   const baseFreq = SCALE[Math.floor(Math.random() * SCALE.length)];
@@ -107,6 +150,16 @@ const playAmbientNote = () => {
 
   osc.start(now);
   osc.stop(now + attack + release + 1);
+  
+  // Clean up after note finishes
+  osc.onended = () => {
+    gain.disconnect();
+    // Remove from active oscillators list
+    const index = activeOscillators.indexOf(osc);
+    if (index > -1) {
+      activeOscillators.splice(index, 1);
+    }
+  };
 };
 
 // --- SFX: Explosion ---
