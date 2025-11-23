@@ -1,6 +1,7 @@
 import type { VoxelObjectData } from '../types';
 import { getRandomPalette, type Palette } from '../utils/palettes';
 import { VoxelBuilder, randomRange, randomChoice, randomBoolean } from '../utils/voxelBuilder';
+import { addShipDecorativeDetails, addCoatOfArmsToWing } from '../utils/components';
 
 export function generateSpaceship(): VoxelObjectData {
   const palette = getRandomPalette('spaceship');
@@ -100,12 +101,19 @@ function generateFighter(builder: VoxelBuilder, palette: Palette) {
   // Wing tips (weapons)
   builder.addBox(fX - wingSpan - 1, fY, wingZ, 1, 1, 2, palette.accent);
   builder.addBox(fX + fuselageWidth + wingSpan, fY, wingZ, 1, 1, 2, palette.accent);
+  
+  // Coat of arms on wings
+  addCoatOfArmsToWing(builder, fX - wingSpan, fY, wingZ, wingSpan, 3, palette);
+  addCoatOfArmsToWing(builder, fX + fuselageWidth, fY, wingZ, wingSpan, 3, palette);
 
   // Engines
   builder.addBox(fX, fY + 1, fZ - 2, 1, 1, 2, palette.accent);
   builder.addBox(fX + fuselageWidth - 1, fY + 1, fZ - 2, 1, 1, 2, palette.accent);
   builder.addVoxel(fX, fY + 1, fZ - 3, '#FF0000');
   builder.addVoxel(fX + fuselageWidth - 1, fY + 1, fZ - 3, '#FF0000');
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, fY, fZ + fuselageLen/2, fuselageWidth, fuselageLen, fuselageHeight, palette);
 }
 
 function generateFreighter(builder: VoxelBuilder, palette: Palette) {
@@ -138,6 +146,10 @@ function generateFreighter(builder: VoxelBuilder, palette: Palette) {
   const wingZ = fZ + randomRange(5, 8);
   builder.addBox(fX - wingSpan, fY, wingZ, wingSpan, 1, 6, palette.secondary);
   builder.addBox(fX + fuselageWidth, fY, wingZ, wingSpan, 1, 6, palette.secondary);
+  
+  // Coat of arms on wings
+  addCoatOfArmsToWing(builder, fX - wingSpan, fY, wingZ, wingSpan, 6, palette);
+  addCoatOfArmsToWing(builder, fX + fuselageWidth, fY, wingZ, wingSpan, 6, palette);
 
   // Multiple engines
   const engineCount = randomRange(4, 6);
@@ -151,6 +163,9 @@ function generateFreighter(builder: VoxelBuilder, palette: Palette) {
   // Docking ports
   builder.addBox(fX - 1, fY + 1, fZ + fuselageLen/2, 1, 2, 2, palette.detail);
   builder.addBox(fX + fuselageWidth, fY + 1, fZ + fuselageLen/2, 1, 2, 2, palette.detail);
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, fY, fZ + fuselageLen/2, fuselageWidth, fuselageLen, fuselageHeight, palette);
 }
 
 function generateExplorer(builder: VoxelBuilder, palette: Palette) {
@@ -197,6 +212,12 @@ function generateExplorer(builder: VoxelBuilder, palette: Palette) {
   builder.addBox(fX + fuselageWidth, fY, wingZ1, wingSpan, 1, 4, palette.secondary);
   builder.addBox(fX - wingSpan, fY, wingZ2, wingSpan, 1, 4, palette.secondary);
   builder.addBox(fX + fuselageWidth, fY, wingZ2, wingSpan, 1, 4, palette.secondary);
+  
+  // Coat of arms on wings - ALWAYS decorate all wings
+  addCoatOfArmsToWing(builder, fX - wingSpan, fY, wingZ1, wingSpan, 4, palette);
+  addCoatOfArmsToWing(builder, fX + fuselageWidth, fY, wingZ1, wingSpan, 4, palette);
+  addCoatOfArmsToWing(builder, fX - wingSpan, fY, wingZ2, wingSpan, 4, palette);
+  addCoatOfArmsToWing(builder, fX + fuselageWidth, fY, wingZ2, wingSpan, 4, palette);
 
   // Engines (ion drives)
   builder.addBox(fX, fY + 1, fZ - 2, 1, 1, 3, palette.accent);
@@ -209,6 +230,9 @@ function generateExplorer(builder: VoxelBuilder, palette: Palette) {
   builder.addBox(fX + fuselageWidth, fY - 2, fZ + 2, 1, 2, 1, palette.detail);
   builder.addBox(fX - 1, fY - 2, fZ + fuselageLen - 3, 1, 2, 1, palette.detail);
   builder.addBox(fX + fuselageWidth, fY - 2, fZ + fuselageLen - 3, 1, 2, 1, palette.detail);
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, fY, fZ + fuselageLen/2, fuselageWidth, fuselageLen, fuselageHeight, palette);
 }
 
 function generateDestroyer(builder: VoxelBuilder, palette: Palette) {
@@ -258,8 +282,13 @@ function generateDestroyer(builder: VoxelBuilder, palette: Palette) {
   // Large wings
   const wingSpan = randomRange(10, 14);
   const wingZ = fZ + randomRange(6, 10);
-  builder.addBox(fX - wingSpan, fY, wingZ, wingSpan, 2, 8, palette.secondary);
-  builder.addBox(fX + fuselageWidth, fY, wingZ, wingSpan, 2, 8, palette.secondary);
+  const wingHeight = 2; // Destroyer wings are 2 voxels high
+  builder.addBox(fX - wingSpan, fY, wingZ, wingSpan, wingHeight, 8, palette.secondary);
+  builder.addBox(fX + fuselageWidth, fY, wingZ, wingSpan, wingHeight, 8, palette.secondary);
+  
+  // Coat of arms on wings - always on top surface
+  addCoatOfArmsToWing(builder, fX - wingSpan, fY, wingZ, wingSpan, 8, palette, wingHeight);
+  addCoatOfArmsToWing(builder, fX + fuselageWidth, fY, wingZ, wingSpan, 8, palette, wingHeight);
 
   // Multiple large engines (plasma)
   const engineCount = randomRange(6, 8);
@@ -273,6 +302,9 @@ function generateDestroyer(builder: VoxelBuilder, palette: Palette) {
   // Sensor arrays
   builder.addBox(fX - 3, fY + 2, fZ + fuselageLen/2, 2, 3, 4, palette.accent);
   builder.addBox(fX + fuselageWidth + 1, fY + 2, fZ + fuselageLen/2, 2, 3, 4, palette.accent);
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, fY, fZ + fuselageLen/2, fuselageWidth, fuselageLen, fuselageHeight, palette);
 }
 
 function generateOvalShip(builder: VoxelBuilder, palette: Palette) {
@@ -310,6 +342,9 @@ function generateOvalShip(builder: VoxelBuilder, palette: Palette) {
     const sensorZ = Math.round(Math.sin(angle) * (size + 1));
     builder.addVoxel(sensorX, centerY + 1, sensorZ, palette.detail);
   }
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, size * 2, size * 2, size, palette);
 }
 
 function generateSaucerShip(builder: VoxelBuilder, palette: Palette) {
@@ -352,6 +387,9 @@ function generateSaucerShip(builder: VoxelBuilder, palette: Palette) {
     const lightZ = Math.round(Math.sin(angle) * radius);
     builder.addVoxel(lightX, centerY + height, lightZ, '#FFFF00');
   }
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, radius * 2, radius * 2, height, palette);
 }
 
 function generateTriangularShip(builder: VoxelBuilder, palette: Palette) {
@@ -392,6 +430,9 @@ function generateTriangularShip(builder: VoxelBuilder, palette: Palette) {
   // Weapon mounts on sides
   builder.addBox(-width/2 - 1, centerY + 1, length/4, 1, 2, 2, palette.accent);
   builder.addBox(width/2, centerY + 1, length/4, 1, 2, 2, palette.accent);
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, width, length, height, palette);
 }
 
 function generateCylindricalShip(builder: VoxelBuilder, palette: Palette) {
@@ -432,6 +473,9 @@ function generateCylindricalShip(builder: VoxelBuilder, palette: Palette) {
   
   // Sensor arrays
   builder.addBox(0, centerY + radius + 1, 0, 2, 2, 3, palette.accent);
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, radius * 2, length, radius * 2, palette);
 }
 
 function generateXWing(builder: VoxelBuilder, palette: Palette) {
@@ -463,6 +507,12 @@ function generateXWing(builder: VoxelBuilder, palette: Palette) {
   // Bottom-right wing
   builder.addBox(fuselageWidth/2, fY, wingZ, wingLength, wingWidth, wingLength, palette.secondary);
   
+  // Coat of arms on wings - ALWAYS decorate all 4 wings
+  addCoatOfArmsToWing(builder, -fuselageWidth/2 - wingLength, fY, wingZ - wingLength, wingLength, wingLength, palette);
+  addCoatOfArmsToWing(builder, fuselageWidth/2, fY, wingZ - wingLength, wingLength, wingLength, palette);
+  addCoatOfArmsToWing(builder, -fuselageWidth/2 - wingLength, fY, wingZ, wingLength, wingLength, palette);
+  addCoatOfArmsToWing(builder, fuselageWidth/2, fY, wingZ, wingLength, wingLength, palette);
+  
   // Weapons on wing tips
   builder.addVoxel(-fuselageWidth/2 - wingLength - 1, fY, wingZ - wingLength, palette.accent);
   builder.addVoxel(fuselageWidth/2 + wingLength, fY, wingZ - wingLength, palette.accent);
@@ -474,6 +524,9 @@ function generateXWing(builder: VoxelBuilder, palette: Palette) {
   builder.addBox(1, fY + 1, fZ - 2, 1, 1, 2, palette.accent);
   builder.addVoxel(-1, fY + 1, fZ - 3, '#FF0000');
   builder.addVoxel(1, fY + 1, fZ - 3, '#FF0000');
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, fY, fZ + fuselageLen/2, fuselageWidth, fuselageLen, fuselageHeight, palette);
 }
 
 function generateTIEFighter(builder: VoxelBuilder, palette: Palette) {
@@ -514,6 +567,9 @@ function generateTIEFighter(builder: VoxelBuilder, palette: Palette) {
   // Engines (back of body)
   builder.addVoxel(0, centerY, -bodySize, palette.accent);
   builder.addVoxel(0, centerY, -bodySize - 1, '#FF0000');
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, bodySize * 2, bodySize * 2, bodySize, palette);
 }
 
 function generateStarDestroyer(builder: VoxelBuilder, palette: Palette) {
@@ -563,6 +619,9 @@ function generateStarDestroyer(builder: VoxelBuilder, palette: Palette) {
   
   // Hangar bay (front underside)
   builder.addBox(-frontWidth/4, centerY - 2, length/2 - 4, frontWidth/2, 2, 4, palette.secondary);
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, frontWidth, length, height, palette);
 }
 
 function generateOrnithopter(builder: VoxelBuilder, palette: Palette) {
@@ -615,6 +674,27 @@ function generateOrnithopter(builder: VoxelBuilder, palette: Palette) {
     builder.addBox(wingX, wingY, wingZ, wingWidth, 1, 2, palette.secondary);
   }
   
+  // Coat of arms on all wings - ALWAYS decorate all 4 wings
+  // Front left wing (approximate center position)
+  const frontLeftWingX = -bodyWidth/2 - wingLength/2;
+  const frontLeftWingY = centerY + Math.round(Math.sin(wingLength * 0.3) * wingLength/2);
+  addCoatOfArmsToWing(builder, frontLeftWingX, frontLeftWingY, bodyLen/4, wingLength, 2, palette);
+  
+  // Front right wing
+  const frontRightWingX = bodyWidth/2 + wingLength/2;
+  const frontRightWingY = centerY + Math.round(Math.sin(wingLength * 0.3) * wingLength/2);
+  addCoatOfArmsToWing(builder, frontRightWingX, frontRightWingY, bodyLen/4, wingLength, 2, palette);
+  
+  // Back left wing
+  const backLeftWingX = -bodyWidth/2 - wingLength/2;
+  const backLeftWingY = centerY + Math.round(Math.sin(wingLength * 0.3) * wingLength/2);
+  addCoatOfArmsToWing(builder, backLeftWingX, backLeftWingY, -bodyLen/4, wingLength, 2, palette);
+  
+  // Back right wing
+  const backRightWingX = bodyWidth/2 + wingLength/2;
+  const backRightWingY = centerY + Math.round(Math.sin(wingLength * 0.3) * wingLength/2);
+  addCoatOfArmsToWing(builder, backRightWingX, backRightWingY, -bodyLen/4, wingLength, 2, palette);
+  
   // Cockpit
   builder.addBox(-1, centerY + bodyHeight, bodyLen/2 - 2, 2, 1, 3, palette.accent);
   builder.addVoxel(0, centerY + bodyHeight + 1, bodyLen/2 - 1, '#00FFFF');
@@ -631,6 +711,9 @@ function generateOrnithopter(builder: VoxelBuilder, palette: Palette) {
   builder.addBox(1, centerY, -bodyLen/2 - 2, 1, 1, 2, palette.accent);
   builder.addVoxel(-1, centerY, -bodyLen/2 - 3, '#FF0000');
   builder.addVoxel(1, centerY, -bodyLen/2 - 3, '#FF0000');
+  
+  // Decorative details
+  addShipDecorativeDetails(builder, 0, centerY, 0, bodyWidth, bodyLen, bodyHeight, palette);
 }
 
 function generateCorvette(builder: VoxelBuilder, palette: Palette) {
@@ -657,6 +740,9 @@ function generateCorvette(builder: VoxelBuilder, palette: Palette) {
     // Engines
     builder.addBox(-1, fY + 1, fZ - 2, 2, 2, 3, palette.accent);
     builder.addVoxel(0, fY + 2, fZ - 3, '#FF0000');
+    
+    // Decorative details
+    addShipDecorativeDetails(builder, 0, fY, fZ + fuselageLen/2, fuselageWidth, fuselageLen, fuselageHeight, palette);
   } else if (config === 1) {
     // Blocky corvette - no wings
     const length = randomRange(10, 14);
@@ -678,6 +764,9 @@ function generateCorvette(builder: VoxelBuilder, palette: Palette) {
     
     // Engines
     builder.addBox(-1, centerY, -length/2 - 2, 2, 2, 3, palette.accent);
+    
+    // Decorative details
+    addShipDecorativeDetails(builder, 0, centerY, 0, width, length, height, palette);
   } else {
     // Curved corvette - organic shape
     const size = randomRange(6, 9);
@@ -695,5 +784,8 @@ function generateCorvette(builder: VoxelBuilder, palette: Palette) {
     // Engines
     builder.addVoxel(-2, centerY, -size/2 - 3, palette.accent);
     builder.addVoxel(2, centerY, -size/2 - 3, palette.accent);
+    
+    // Decorative details
+    addShipDecorativeDetails(builder, 0, centerY, 0, size * 2, size * 2, size, palette);
   }
 }

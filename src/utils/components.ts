@@ -563,3 +563,470 @@ export function generateFins(builder: VoxelBuilder, x: number, y: number, z: num
     builder.addBox(finX, y, z, 1, 3, 2, palette.secondary);
   }
 }
+
+// ========== SPACESHIP DECORATIONS ==========
+
+export function generateCoatOfArms(builder: VoxelBuilder, x: number, y: number, z: number, size: number, palette: Palette, direction: 'x' | 'y' | 'z' = 'z') {
+  // Create flat coat of arms as surface patterns - only recolor existing voxels (dyes)
+  // direction: which surface to place on ('x' for sides, 'y' for top, 'z' for front/back)
+  // Pattern only extends in the plane of the surface, not perpendicular to it
+  
+  const symbolType = randomChoice(['shield', 'shield', 'circle', 'diamond', 'star']); // Favor shield
+  
+  // Helper to recolor existing voxel on surface (only if it exists)
+  const recolorVoxelSurface = (vx: number, vy: number, vz: number, color: string) => {
+    // Only recolor if voxel exists at this position
+    builder.recolorVoxel(vx, vy, vz, color);
+  };
+  
+  // Adjust coordinates based on direction - pattern should only extend in the surface plane
+  let patternX = x, patternY = y, patternZ = z;
+  if (direction === 'x') {
+    // Side surface: pattern extends in Y and Z, X stays constant
+    patternX = x; // Keep X constant (the side surface)
+  } else if (direction === 'y') {
+    // Top surface: pattern extends in X and Z, Y stays constant
+    patternY = y; // Keep Y constant (the top surface)
+  } else {
+    // Front/back surface: pattern extends in X and Y, Z stays constant
+    patternZ = z; // Keep Z constant (the front/back surface)
+  }
+  
+  switch (symbolType) {
+    case 'shield':
+      // Shield shape (upside-down triangle with curved top) - recolor existing voxels
+      // Pattern extends in Y and Z for side surfaces, X and Z for top surfaces
+      if (direction === 'x') {
+        // Side surface: extend in Y and Z only
+        // Top curve
+        for (let i = -size; i <= size; i++) {
+          const curveY = Math.floor(Math.sqrt(size * size - i * i) * 0.5);
+          recolorVoxelSurface(patternX, patternY + curveY, patternZ + i, palette.accent);
+        }
+        // Sides
+        for (let i = 0; i < size; i++) {
+          recolorVoxelSurface(patternX, patternY - i, patternZ - size + i, palette.accent);
+          recolorVoxelSurface(patternX, patternY - i, patternZ + size - i, palette.accent);
+        }
+        // Bottom point
+        recolorVoxelSurface(patternX, patternY - size, patternZ, palette.accent);
+        // Inner pattern
+        if (randomBoolean(0.5)) {
+          for (let i = -Math.floor(size/2); i <= Math.floor(size/2); i++) {
+            recolorVoxelSurface(patternX, patternY, patternZ + i, palette.detail);
+            recolorVoxelSurface(patternX, patternY + i, patternZ, palette.detail);
+          }
+        } else {
+          for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2;
+            const offsetZ = Math.round(Math.cos(angle) * size/2);
+            const offsetY = Math.round(Math.sin(angle) * size/2);
+            recolorVoxelSurface(patternX, patternY + offsetY, patternZ + offsetZ, palette.detail);
+          }
+          recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+        }
+      } else if (direction === 'y') {
+        // Top surface: extend in X and Z only
+        // Use high-contrast colors to ensure visibility
+        const accentColor = palette.accent;
+        const detailColor = palette.detail;
+        // Top curve
+        for (let i = -size; i <= size; i++) {
+          const curveZ = Math.floor(Math.sqrt(size * size - i * i) * 0.5);
+          recolorVoxelSurface(patternX + i, patternY, patternZ + curveZ, accentColor);
+        }
+        // Sides
+        for (let i = 0; i < size; i++) {
+          recolorVoxelSurface(patternX - size + i, patternY, patternZ - i, accentColor);
+          recolorVoxelSurface(patternX + size - i, patternY, patternZ - i, accentColor);
+        }
+        // Bottom point
+        recolorVoxelSurface(patternX, patternY, patternZ - size, accentColor);
+        // Inner pattern
+        if (randomBoolean(0.5)) {
+          for (let i = -Math.floor(size/2); i <= Math.floor(size/2); i++) {
+            recolorVoxelSurface(patternX + i, patternY, patternZ, detailColor);
+            recolorVoxelSurface(patternX, patternY, patternZ + i, detailColor);
+          }
+        } else {
+          for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2;
+            const offsetX = Math.round(Math.cos(angle) * size/2);
+            const offsetZ = Math.round(Math.sin(angle) * size/2);
+            recolorVoxelSurface(patternX + offsetX, patternY, patternZ + offsetZ, detailColor);
+          }
+          recolorVoxelSurface(patternX, patternY, patternZ, detailColor);
+        }
+      } else {
+        // Front/back surface: extend in X and Y only
+        // Top curve
+        for (let i = -size; i <= size; i++) {
+          const curveY = Math.floor(Math.sqrt(size * size - i * i) * 0.5);
+          recolorVoxelSurface(patternX + i, patternY + curveY, patternZ, palette.accent);
+        }
+        // Sides
+        for (let i = 0; i < size; i++) {
+          recolorVoxelSurface(patternX - size + i, patternY - i, patternZ, palette.accent);
+          recolorVoxelSurface(patternX + size - i, patternY - i, patternZ, palette.accent);
+        }
+        // Bottom point
+        recolorVoxelSurface(patternX, patternY - size, patternZ, palette.accent);
+        // Inner pattern
+        if (randomBoolean(0.5)) {
+          for (let i = -Math.floor(size/2); i <= Math.floor(size/2); i++) {
+            recolorVoxelSurface(patternX + i, patternY, patternZ, palette.detail);
+            recolorVoxelSurface(patternX, patternY + i, patternZ, palette.detail);
+          }
+        } else {
+          for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2;
+            const offsetX = Math.round(Math.cos(angle) * size/2);
+            const offsetY = Math.round(Math.sin(angle) * size/2);
+            recolorVoxelSurface(patternX + offsetX, patternY + offsetY, patternZ, palette.detail);
+          }
+          recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+        }
+      }
+      break;
+      
+    case 'circle':
+      // Circular emblem - recolor existing voxels
+      const radius = size;
+      if (direction === 'x') {
+        // Side surface: circle in Y-Z plane
+        for (let i = -radius; i <= radius; i++) {
+          for (let j = -radius; j <= radius; j++) {
+            if (i * i + j * j <= radius * radius && i * i + j * j >= (radius - 1) * (radius - 1)) {
+              recolorVoxelSurface(patternX, patternY + i, patternZ + j, palette.accent);
+            }
+          }
+        }
+        // Inner symbol
+        if (randomBoolean(0.5)) {
+          for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const offsetY = Math.round(Math.cos(angle) * size/2);
+            const offsetZ = Math.round(Math.sin(angle) * size/2);
+            recolorVoxelSurface(patternX, patternY + offsetY, patternZ + offsetZ, palette.detail);
+          }
+        } else {
+          recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+          recolorVoxelSurface(patternX, patternY - 1, patternZ, palette.detail);
+          recolorVoxelSurface(patternX, patternY + 1, patternZ, palette.detail);
+          recolorVoxelSurface(patternX, patternY, patternZ - 1, palette.detail);
+          recolorVoxelSurface(patternX, patternY, patternZ + 1, palette.detail);
+        }
+      } else if (direction === 'y') {
+        // Top surface: circle in X-Z plane
+        const accentColor = palette.accent;
+        const detailColor = palette.detail;
+        for (let i = -radius; i <= radius; i++) {
+          for (let j = -radius; j <= radius; j++) {
+            if (i * i + j * j <= radius * radius && i * i + j * j >= (radius - 1) * (radius - 1)) {
+              recolorVoxelSurface(patternX + i, patternY, patternZ + j, accentColor);
+            }
+          }
+        }
+        // Inner symbol
+        if (randomBoolean(0.5)) {
+          for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const offsetX = Math.round(Math.cos(angle) * size/2);
+            const offsetZ = Math.round(Math.sin(angle) * size/2);
+            recolorVoxelSurface(patternX + offsetX, patternY, patternZ + offsetZ, detailColor);
+          }
+        } else {
+          recolorVoxelSurface(patternX, patternY, patternZ, detailColor);
+          recolorVoxelSurface(patternX - 1, patternY, patternZ, detailColor);
+          recolorVoxelSurface(patternX + 1, patternY, patternZ, detailColor);
+          recolorVoxelSurface(patternX, patternY, patternZ - 1, detailColor);
+          recolorVoxelSurface(patternX, patternY, patternZ + 1, detailColor);
+        }
+      } else {
+        // Front/back surface: circle in X-Y plane
+        for (let i = -radius; i <= radius; i++) {
+          for (let j = -radius; j <= radius; j++) {
+            if (i * i + j * j <= radius * radius && i * i + j * j >= (radius - 1) * (radius - 1)) {
+              recolorVoxelSurface(patternX + i, patternY + j, patternZ, palette.accent);
+            }
+          }
+        }
+        // Inner symbol
+        if (randomBoolean(0.5)) {
+          for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const offsetX = Math.round(Math.cos(angle) * size/2);
+            const offsetY = Math.round(Math.sin(angle) * size/2);
+            recolorVoxelSurface(patternX + offsetX, patternY + offsetY, patternZ, palette.detail);
+          }
+        } else {
+          recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+          recolorVoxelSurface(patternX - 1, patternY, patternZ, palette.detail);
+          recolorVoxelSurface(patternX + 1, patternY, patternZ, palette.detail);
+          recolorVoxelSurface(patternX, patternY - 1, patternZ, palette.detail);
+          recolorVoxelSurface(patternX, patternY + 1, patternZ, palette.detail);
+        }
+      }
+      break;
+      
+    case 'diamond':
+      // Diamond shape - recolor existing voxels
+      if (direction === 'x') {
+        // Side surface: diamond in Y-Z plane
+        for (let i = 0; i < size; i++) {
+          for (let j = 0; j <= i; j++) {
+            recolorVoxelSurface(patternX, patternY + j, patternZ + i - j, palette.accent);
+            recolorVoxelSurface(patternX, patternY - j, patternZ + i - j, palette.accent);
+            recolorVoxelSurface(patternX, patternY + j, patternZ - i + j, palette.accent);
+            recolorVoxelSurface(patternX, patternY - j, patternZ - i + j, palette.accent);
+          }
+        }
+        recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+      } else if (direction === 'y') {
+        // Top surface: diamond in X-Z plane
+        const accentColor = palette.accent;
+        const detailColor = palette.detail;
+        for (let i = 0; i < size; i++) {
+          for (let j = 0; j <= i; j++) {
+            recolorVoxelSurface(patternX + j, patternY, patternZ + i - j, accentColor);
+            recolorVoxelSurface(patternX - j, patternY, patternZ + i - j, accentColor);
+            recolorVoxelSurface(patternX + j, patternY, patternZ - i + j, accentColor);
+            recolorVoxelSurface(patternX - j, patternY, patternZ - i + j, accentColor);
+          }
+        }
+        recolorVoxelSurface(patternX, patternY, patternZ, detailColor);
+      } else {
+        // Front/back surface: diamond in X-Y plane
+        for (let i = 0; i < size; i++) {
+          for (let j = 0; j <= i; j++) {
+            recolorVoxelSurface(patternX + j, patternY + i - j, patternZ, palette.accent);
+            recolorVoxelSurface(patternX - j, patternY + i - j, patternZ, palette.accent);
+            recolorVoxelSurface(patternX + j, patternY - i + j, patternZ, palette.accent);
+            recolorVoxelSurface(patternX - j, patternY - i + j, patternZ, palette.accent);
+          }
+        }
+        recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+      }
+      break;
+      
+    case 'star':
+      // Star shape - recolor existing voxels
+      const points = 5;
+      if (direction === 'x') {
+        // Side surface: star in Y-Z plane
+        for (let i = 0; i < points; i++) {
+          const angle1 = (i / points) * Math.PI * 2;
+          const angle2 = ((i + 0.5) / points) * Math.PI * 2;
+          const outerY = Math.round(Math.cos(angle1) * size);
+          const outerZ = Math.round(Math.sin(angle1) * size);
+          const innerY = Math.round(Math.cos(angle2) * size/2);
+          const innerZ = Math.round(Math.sin(angle2) * size/2);
+          const steps = 5;
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const py = Math.round(outerY * (1 - t) + innerY * t);
+            const pz = Math.round(outerZ * (1 - t) + innerZ * t);
+            recolorVoxelSurface(patternX, patternY + py, patternZ + pz, palette.accent);
+          }
+        }
+        recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+      } else if (direction === 'y') {
+        // Top surface: star in X-Z plane
+        const accentColor = palette.accent;
+        const detailColor = palette.detail;
+        for (let i = 0; i < points; i++) {
+          const angle1 = (i / points) * Math.PI * 2;
+          const angle2 = ((i + 0.5) / points) * Math.PI * 2;
+          const outerX = Math.round(Math.cos(angle1) * size);
+          const outerZ = Math.round(Math.sin(angle1) * size);
+          const innerX = Math.round(Math.cos(angle2) * size/2);
+          const innerZ = Math.round(Math.sin(angle2) * size/2);
+          const steps = 5;
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const px = Math.round(outerX * (1 - t) + innerX * t);
+            const pz = Math.round(outerZ * (1 - t) + innerZ * t);
+            recolorVoxelSurface(patternX + px, patternY, patternZ + pz, accentColor);
+          }
+        }
+        recolorVoxelSurface(patternX, patternY, patternZ, detailColor);
+      } else {
+        // Front/back surface: star in X-Y plane
+        for (let i = 0; i < points; i++) {
+          const angle1 = (i / points) * Math.PI * 2;
+          const angle2 = ((i + 0.5) / points) * Math.PI * 2;
+          const outerX = Math.round(Math.cos(angle1) * size);
+          const outerY = Math.round(Math.sin(angle1) * size);
+          const innerX = Math.round(Math.cos(angle2) * size/2);
+          const innerY = Math.round(Math.sin(angle2) * size/2);
+          const steps = 5;
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            const px = Math.round(outerX * (1 - t) + innerX * t);
+            const py = Math.round(outerY * (1 - t) + innerY * t);
+            recolorVoxelSurface(patternX + px, patternY + py, patternZ, palette.accent);
+          }
+        }
+        recolorVoxelSurface(patternX, patternY, patternZ, palette.detail);
+      }
+      break;
+  }
+}
+
+export function generateSymbol(builder: VoxelBuilder, x: number, y: number, z: number, type: string, palette: Palette) {
+  // Symbols are also surface patterns - only recolor existing voxels
+  switch (type) {
+    case 'cross':
+      // Simple cross
+      for (let i = -2; i <= 2; i++) {
+        builder.recolorVoxel(x + i, y, z, palette.accent);
+        builder.recolorVoxel(x, y + i, z, palette.accent);
+      }
+      break;
+    case 'arrow':
+      // Arrow pointing forward
+      builder.recolorVoxel(x, y, z, palette.accent);
+      builder.recolorVoxel(x, y, z + 1, palette.accent);
+      builder.recolorVoxel(x - 1, y, z + 1, palette.accent);
+      builder.recolorVoxel(x + 1, y, z + 1, palette.accent);
+      builder.recolorVoxel(x, y, z + 2, palette.accent);
+      break;
+    case 'triangle':
+      // Triangle
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j <= i; j++) {
+          builder.recolorVoxel(x + j - i/2, y + i, z, palette.accent);
+        }
+      }
+      break;
+    case 'square':
+      // Square - recolor existing voxels in a 3x3 area
+      for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+          builder.recolorVoxel(x + i, y + j, z, palette.accent);
+        }
+      }
+      builder.recolorVoxel(x, y, z, palette.detail);
+      break;
+    case 'circle':
+      // Small circle
+      const radius = 2;
+      for (let i = -radius; i <= radius; i++) {
+        for (let j = -radius; j <= radius; j++) {
+          if (Math.abs(i * i + j * j - radius * radius) < 2) {
+            builder.recolorVoxel(x + i, y + j, z, palette.accent);
+          }
+        }
+      }
+      break;
+    case 'lightning':
+      // Lightning bolt
+      builder.recolorVoxel(x, y + 2, z, palette.accent);
+      builder.recolorVoxel(x - 1, y + 1, z, palette.accent);
+      builder.recolorVoxel(x, y, z, palette.accent);
+      builder.recolorVoxel(x + 1, y - 1, z, palette.accent);
+      builder.recolorVoxel(x, y - 2, z, palette.accent);
+      break;
+  }
+}
+
+export function addCoatOfArmsToWing(builder: VoxelBuilder, wingX: number, wingY: number, wingZ: number, wingWidth: number, wingLength: number, palette: Palette, wingHeight: number = 1) {
+  // Add coat of arms to wing surface (top) - ALWAYS decorate wings - recolor existing wing voxels
+  // Always place on the top surface of the wing so it's visible from above
+  // Center the decoration on the wing for better visibility
+  const emblemX = wingX + Math.floor(wingWidth / 2);
+  const emblemZ = wingZ + Math.floor(wingLength / 2);
+  // Place on top surface: wingY + wingHeight - 1 (topmost voxel of the wing)
+  // Use larger size (3-5) to ensure visibility, but ensure it fits on wing
+  const maxSize = Math.min(Math.floor(wingWidth / 2), Math.floor(wingLength / 2), 5);
+  const size = Math.max(3, randomRange(3, maxSize));
+  generateCoatOfArms(builder, emblemX, wingY + wingHeight - 1, emblemZ, size, palette, 'y');
+}
+
+export function addShipDecorativeDetails(builder: VoxelBuilder, centerX: number, centerY: number, centerZ: number, width: number, length: number, height: number, palette: Palette) {
+  // Add various decorative elements to ship hull
+  
+  // 1. Coat of arms on sides (ALWAYS - make it prominent) - recolor existing hull voxels
+  // Place on side surface, centered on the surface
+  const useLeftSide = randomBoolean(0.5);
+  // For left side: place at x = -width/2 (the left surface), but center the pattern
+  // For right side: place at x = width/2 - 1 (the right surface), but center the pattern
+  const sideX = useLeftSide ? -width/2 : width/2 - 1;
+  const emblemY = centerY + Math.floor(height / 2);
+  const emblemZ = centerZ + randomRange(-length/4, length/4);
+  // Use smaller size to ensure pattern fits on hull surface
+  generateCoatOfArms(builder, sideX, emblemY, emblemZ, randomRange(2, 3), palette, 'x');
+  
+  // Also add to opposite side sometimes (50% chance)
+  if (randomBoolean(0.5)) {
+    const oppositeX = useLeftSide ? width/2 - 1 : -width/2;
+    const oppositeY = centerY + Math.floor(height / 2);
+    const oppositeZ = centerZ + randomRange(-length/4, length/4);
+    generateCoatOfArms(builder, oppositeX, oppositeY, oppositeZ, randomRange(2, 3), palette, 'x');
+  }
+  
+  // Coat of arms on top surface (60% chance) - recolor existing top surface voxels
+  if (randomBoolean(0.6)) {
+    const topX = centerX + randomRange(-width/3, width/3);
+    const topZ = centerZ + randomRange(-length/3, length/3);
+    // Place on top surface: centerY + height - 1 (top surface of hull)
+    generateCoatOfArms(builder, topX, centerY + height - 1, topZ, randomRange(2, 3), palette, 'y');
+  }
+  
+  // 2. Symbols on top surface (60% chance) - recolor existing hull voxels
+  if (randomBoolean(0.6)) {
+    const symbolCount = randomRange(1, 3);
+    for (let i = 0; i < symbolCount; i++) {
+      const symbolX = centerX + randomRange(-width/2 + 1, width/2 - 1);
+      const symbolZ = centerZ + randomRange(-length/2 + 2, length/2 - 2);
+      const symbolType = randomChoice(['cross', 'arrow', 'triangle', 'square', 'circle', 'lightning']);
+      // Place on top surface of hull - recolor existing voxels
+      generateSymbol(builder, symbolX, centerY + height - 1, symbolZ, symbolType, palette);
+    }
+  }
+  
+  // 3. Decorative panels/stripes (80% chance) - recolor existing hull voxels
+  if (randomBoolean(0.8)) {
+    const stripeCount = randomRange(2, 4);
+    for (let i = 0; i < stripeCount; i++) {
+      const stripeZ = centerZ - length/2 + (i + 1) * (length / (stripeCount + 1));
+      // Horizontal stripe on top surface - recolor existing voxels
+      for (let x = centerX - width/2 + 1; x < centerX + width/2 - 1; x++) {
+        builder.recolorVoxel(x, centerY + height - 1, stripeZ, palette.secondary);
+      }
+    }
+  }
+  
+  // 4. Hull markings/numbers (40% chance) - recolor existing hull voxels
+  if (randomBoolean(0.4)) {
+    const markZ = centerZ + length/2 - 2;
+    // Simple number pattern on top surface - recolor existing voxels
+    const number = randomRange(1, 9);
+    // Represent number with dots
+    for (let i = 0; i < number && i < 5; i++) {
+      builder.recolorVoxel(centerX - 2 + i, centerY + height - 1, markZ, palette.detail);
+    }
+  }
+  
+  // 5. Warning stripes (30% chance) - recolor existing hull voxels
+  if (randomBoolean(0.3)) {
+    const stripeZ = centerZ - length/2 + 1;
+    // Diagonal warning stripes on top surface - recolor existing voxels
+    for (let i = 0; i < 3; i++) {
+      builder.recolorVoxel(centerX - width/2 + i, centerY + height - 1, stripeZ + i, '#FF0000');
+      builder.recolorVoxel(centerX + width/2 - 1 - i, centerY + height - 1, stripeZ + i, '#FF0000');
+    }
+  }
+  
+  // 6. Decorative vents/grilles (50% chance) - recolor existing hull voxels
+  if (randomBoolean(0.5)) {
+    const ventCount = randomRange(2, 4);
+    for (let i = 0; i < ventCount; i++) {
+      const ventZ = centerZ - length/2 + 2 + i * 3;
+      // Grid pattern on top surface - recolor existing voxels
+      for (let j = 0; j < 3; j++) {
+        builder.recolorVoxel(centerX - 1 + j, centerY + height - 1, ventZ, palette.detail);
+      }
+    }
+  }
+}

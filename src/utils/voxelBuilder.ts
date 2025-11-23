@@ -99,6 +99,25 @@ export class VoxelBuilder {
       this.addVoxel(pos.x, pos.y, pos.z, color);
     }
   }
+
+  hasVoxel(x: number, y: number, z: number): boolean {
+    const key = this.getVoxelKey(x, y, z);
+    return this.voxelSet.has(key);
+  }
+
+  recolorVoxel(x: number, y: number, z: number, newColor: string): boolean {
+    // Only recolor if voxel exists
+    const key = this.getVoxelKey(x, y, z);
+    if (!this.voxelSet.has(key)) return false;
+    
+    // Find and update the voxel
+    const voxel = this.voxels.find(v => v.id === key);
+    if (voxel) {
+      voxel.color = newColor;
+      return true;
+    }
+    return false;
+  }
 }
 
 export function randomRange(min: number, max: number): number {
