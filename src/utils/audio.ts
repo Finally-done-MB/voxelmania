@@ -8,7 +8,6 @@ let ambientInterval: ReturnType<typeof setInterval> | null = null;
 let activeOscillators: OscillatorNode[] = []; // Track all active oscillators for immediate stop
 
 // Configuration
-const FADE_TIME = 2.0; // Seconds for fade in/out
 const REVERB_SECONDS = 3.0; // Length of reverb tail
 
 // Pentatonic Scale (C Major Pentatonic: C, D, E, G, A)
@@ -79,9 +78,10 @@ export const startAmbientMusic = () => {
   }
   
   if (!audioCtx) initAudio();
+  if (!audioCtx) return;
   
   // Try to resume if suspended (needed for audio to actually play)
-  if (audioCtx?.state === 'suspended') {
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
 
@@ -198,9 +198,9 @@ const playAmbientNote = () => {
 export const playExplosionSound = () => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
-  if (!compressor) return;
+  if (!audioCtx || !compressor) return;
   // Resume audio context if suspended (needed for SFX to play)
-  if (audioCtx?.state === 'suspended') {
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
 
@@ -255,9 +255,9 @@ export const playExplosionSound = () => {
 export const playCrumbleSound = () => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
-  if (!compressor) return;
+  if (!audioCtx || !compressor) return;
   // Resume audio context if suspended (needed for SFX to play)
-  if (audioCtx?.state === 'suspended') {
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
 
@@ -329,7 +329,6 @@ class AudioPoolManager {
   private isExplosionMode: boolean = false;
   private explosionStartTime: number = 0;
   private readonly EXPLOSION_BURST_DURATION = 0.5; // seconds - initial burst phase
-  private readonly EXPLOSION_TRANSITION_DURATION = 1.0; // seconds - transition to ambient
   
   // Rate limiting for prominent impacts
   private prominentImpactsThisSecond: number = 0;
@@ -588,9 +587,9 @@ export const stopDebrisAmbient = () => {
 const playParticleCollisionSound = (velocity: number) => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
-  if (!compressor) return;
+  if (!audioCtx || !compressor) return;
   // Resume audio context if suspended (needed for SFX to play)
-  if (audioCtx?.state === 'suspended') {
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
 
@@ -637,9 +636,9 @@ const playParticleCollisionSound = (velocity: number) => {
 export const playClickImpactSound = () => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
-  if (!compressor) return;
+  if (!audioCtx || !compressor) return;
   // Resume audio context if suspended (needed for SFX to play)
-  if (audioCtx?.state === 'suspended') {
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
 
@@ -695,9 +694,9 @@ export const playClickImpactSound = () => {
 export const playGroundImpactSound = (velocity: number) => {
   // Initialize audio context if needed (independent of music state)
   if (!audioCtx) initAudio();
-  if (!compressor) return;
+  if (!audioCtx || !compressor) return;
   // Resume audio context if suspended (needed for SFX to play)
-  if (audioCtx?.state === 'suspended') {
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
 

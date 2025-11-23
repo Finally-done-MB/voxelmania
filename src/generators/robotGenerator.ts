@@ -1,6 +1,6 @@
 import type { VoxelObjectData } from '../types';
 import { getRandomPalette } from '../utils/palettes';
-import { VoxelBuilder, randomRange, randomChoice, randomBoolean, setSeed, generateSeed, getSeedString } from '../utils/voxelBuilder';
+import { VoxelBuilder, randomRange, randomChoice, randomBoolean, setSeed, generateSeed } from '../utils/voxelBuilder';
 import {
   generateHand,
   generateElbow,

@@ -43,8 +43,8 @@ Just visit the live demo when it's available—no installation needed! Works rig
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/simonas-fd/voxel-robots.git
-   cd voxel-robots
+   git clone https://github.com/simonas-fd/voxelmania.git
+   cd voxelmania
    ```
 
 2. Install dependencies:

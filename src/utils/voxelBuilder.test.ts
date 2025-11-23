@@ -7,6 +7,7 @@ const mockPalette: Palette = {
   secondary: '#00FF00',
   accent: '#0000FF',
   detail: '#FFFF00',
+  dark: '#000000',
 };
 
 describe('VoxelBuilder', () => {

@@ -14,9 +14,8 @@ import type { GeneratorCategory, VoxelObjectData } from '../types';
 import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint, deleteBlueprint, toggleFavorite, getFavoriteBlueprints } from '../utils/storage';
 import { exportImage } from '../utils/imageExport';
 import { getStats, trackCreation } from '../utils/stats';
-import { setSeed } from '../utils/voxelBuilder';
 import { 
-  initAudio, resumeAudio, startAmbientMusic, stopAmbientMusic, setMusicVolume, setSfxVolume,
+  initAudio, resumeAudio, startAmbientMusic, setMusicVolume, setSfxVolume,
   playExplosionSound, playCrumbleSound 
 } from '../utils/audio';
 

@@ -15,7 +15,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
   const rigidBodies = useRef<RapierRigidBody[]>(null);
   const { isSfxMuted } = useAppStore();
   const { camera, raycaster, gl } = useThree();
-  const [clickPoint, setClickPoint] = useState<THREE.Vector3 | null>(null);
+  const [, setClickPoint] = useState<THREE.Vector3 | null>(null);
   
   // Track previous positions and velocities for impact detection
   const previousPositions = useRef<Map<number, THREE.Vector3>>(new Map());
@@ -124,7 +124,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       // Also check for closest particle to the ray for better accuracy
       let closestParticle: { index: number; distance: number; point: THREE.Vector3 } | null = null;
       
-      rigidBodies.current.forEach((api, i) => {
+      rigidBodies.current.forEach((api, index) => {
         if (!api || !api.isValid()) return;
         
         try {
@@ -142,7 +142,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
           if (distanceToRay < 2 && projectionLength > 0 && projectionLength < 50) {
             if (!closestParticle || distanceToRay < closestParticle.distance) {
               closestParticle = {
-                index: i,
+                index: index,
                 distance: distanceToRay,
                 point: particlePos.clone()
               };
@@ -155,7 +155,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       
       // Use closest particle point if found, otherwise use plane intersection
       if (closestParticle) {
-        worldPoint = closestParticle.point;
+        worldPoint = (closestParticle as { index: number; distance: number; point: THREE.Vector3 }).point;
       }
       
       setClickPoint(worldPoint.clone());
@@ -165,7 +165,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       const impactForce = 125; // Force magnitude (increased from 25)
       let affectedCount = 0;
       
-      rigidBodies.current.forEach((api, i) => {
+      rigidBodies.current.forEach((api) => {
         if (!api || !api.isValid()) return;
         
         try {

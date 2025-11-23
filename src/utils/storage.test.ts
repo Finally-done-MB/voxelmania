@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { LocalStorageAdapter } from './storage.localStorage';
-import { setStorage, getStorage, saveBlueprint, getSavedBlueprints, deleteBlueprint, toggleFavorite, getFavoriteBlueprints } from './storage';
+import { setStorage, saveBlueprint, getSavedBlueprints, deleteBlueprint, toggleFavorite, getFavoriteBlueprints } from './storage';
 import type { VoxelObjectData } from '../types';
 import type { IStorage } from './storage.interface';
 
