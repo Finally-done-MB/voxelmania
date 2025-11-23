@@ -11,7 +11,7 @@ import { generateSpaceship } from '../generators/spaceshipGenerator';
 import { generateAnimal } from '../generators/animalGenerator';
 import { generateMonster } from '../generators/monsterGenerator';
 import type { GeneratorCategory, VoxelObjectData } from '../types';
-import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint, deleteBlueprint, toggleFavorite, getFavoriteBlueprints } from '../utils/storage';
+import { saveBlueprint, exportBlueprint, importBlueprint, deleteBlueprint, toggleFavorite, getFavoriteBlueprints } from '../utils/storage';
 import { exportImage } from '../utils/imageExport';
 import { getStats, trackCreation } from '../utils/stats';
 import { 
@@ -62,7 +62,9 @@ export function ControlPanel() {
     return window.innerWidth >= 768; // md breakpoint
   });
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [savedItems, setSavedItems] = useState<VoxelObjectData[]>([]);
+  const savedItems = useAppStore((state) => state.savedItems);
+  const setSavedItems = useAppStore((state) => state.setSavedItems);
+  const refreshSavedItems = useAppStore((state) => state.refreshSavedItems);
 
   // Update menu state when screen size changes (e.g., device rotation from desktop to mobile)
   useEffect(() => {
@@ -139,13 +141,13 @@ export function ControlPanel() {
   // Generate initial object on mount and start muted music
   useEffect(() => {
     generateInitialObject();
-    setSavedItems(getSavedBlueprints());
+    refreshSavedItems();
     // Initialize audio and start music (muted) - this works with autoplay policy
     initAudio();
     startAmbientMusic();
     // Set initial volume to 0 (muted) since isMuted defaults to true
     setMusicVolume(0);
-  }, []);
+  }, [refreshSavedItems]);
 
   // Generate object without audio initialization (for initial load)
   const generateInitialObject = () => {
@@ -364,7 +366,7 @@ export function ControlPanel() {
     if (currentObject) {
       saveBlueprint(currentObject);
       // Update state immediately
-      setSavedItems(getSavedBlueprints());
+      refreshSavedItems();
     }
   };
   
@@ -402,16 +404,14 @@ export function ControlPanel() {
 
   const handleDelete = (e: React.MouseEvent, blueprintId: string) => {
     e.stopPropagation(); // Prevent triggering the load action
-    if (confirm('Are you sure you want to delete this blueprint?')) {
-      deleteBlueprint(blueprintId);
-      setSavedItems(getSavedBlueprints());
-    }
+    deleteBlueprint(blueprintId);
+    refreshSavedItems();
   };
 
   const handleToggleFavorite = (e: React.MouseEvent, blueprintId: string) => {
     e.stopPropagation(); // Prevent triggering the load action
     toggleFavorite(blueprintId);
-    setSavedItems(getSavedBlueprints());
+    refreshSavedItems();
   };
 
   const handleExportImage = () => {

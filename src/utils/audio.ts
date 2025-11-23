@@ -61,7 +61,7 @@ export const initAudio = () => {
 };
 
 export const resumeAudio = async () => {
-  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await yet)
+  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await it!)
   // This needs to start within the user gesture context
   const unlockPromise = unlockSilentMode();
   
@@ -96,8 +96,8 @@ export const resumeAudio = async () => {
     }
   }
   
-  // Wait for silent mode unlock to complete (it started earlier)
-  await unlockPromise.catch(err => console.warn('Silent mode unlock failed:', err));
+  // Don't await - let it finish in background (iOS can suspend awaiting async functions)
+  unlockPromise.catch(err => console.warn('Silent mode unlock failed:', err));
 };
 
 // --- Generative Ambient Music ---
@@ -144,8 +144,9 @@ export const startAmbientMusic = async () => {
     }
   }
   
-  // Wait for silent mode unlock (it started earlier)
-  await unlockPromise.catch(err => console.warn('Silent mode unlock in startMusic failed:', err));
+  // Don't wait for silent mode unlock - let it finish in background!
+  // iOS can suspend async functions waiting on promises
+  unlockPromise.catch(err => console.warn('Silent mode unlock in startMusic failed:', err));
 
   // Play a note every 2-4 seconds
   const scheduleNextNote = () => {
@@ -154,7 +155,7 @@ export const startAmbientMusic = async () => {
     ambientInterval = setTimeout(scheduleNextNote, nextTime);
   };
 
-  console.log('🎵 Starting music notes');
+  console.log('🎵 Starting music notes, context state:', audioCtx.state);
   scheduleNextNote();
 };
 
@@ -259,7 +260,7 @@ const playAmbientNote = () => {
 // --- SFX: Explosion ---
 
 export const playExplosionSound = async () => {
-  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await yet)
+  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await it!)
   const unlockPromise = unlockSilentMode();
   
   // Initialize audio context if needed (independent of music state)
@@ -279,8 +280,8 @@ export const playExplosionSound = async () => {
     });
   }
   
-  // Wait for silent mode unlock (it started earlier)
-  await unlockPromise.catch(err => console.warn('Silent mode unlock in explosion failed:', err));
+  // Don't await - let it finish in background
+  unlockPromise.catch(err => console.warn('Silent mode unlock in explosion failed:', err));
 
   const t = audioCtx.currentTime;
   
@@ -331,7 +332,7 @@ export const playExplosionSound = async () => {
 // --- SFX: Crumble (Granular) ---
 
 export const playCrumbleSound = async () => {
-  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await yet)
+  // CRITICAL iOS FIX: Start silent mode unlock immediately (don't await it!)
   const unlockPromise = unlockSilentMode();
   
   // Initialize audio context if needed (independent of music state)
@@ -351,8 +352,8 @@ export const playCrumbleSound = async () => {
     });
   }
   
-  // Wait for silent mode unlock (it started earlier)
-  await unlockPromise.catch(err => console.warn('Silent mode unlock in crumble failed:', err));
+  // Don't await - let it finish in background
+  unlockPromise.catch(err => console.warn('Silent mode unlock in crumble failed:', err));
 
   // Play 5-10 small "grains" of sound
   const grains = 5 + Math.floor(Math.random() * 5);

@@ -9,6 +9,7 @@ interface AppState {
   isMuted: boolean;
   isSfxMuted: boolean;
   isExporting: boolean; // Hide floor grid during export
+  savedItems: VoxelObjectData[]; // Gallery items
   
   setCurrentObject: (object: VoxelObjectData) => void;
   updateCurrentObjectName: (name: string) => void;
@@ -17,6 +18,8 @@ interface AppState {
   toggleMute: () => void;
   toggleSfxMute: () => void;
   setExporting: (exporting: boolean) => void;
+  setSavedItems: (items: VoxelObjectData[]) => void;
+  refreshSavedItems: () => void; // Helper to reload from storage
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -27,6 +30,7 @@ export const useAppStore = create<AppState>((set) => ({
   isMuted: true, // Music starts muted (muted autoplay)
   isSfxMuted: false, // SFX ON by default
   isExporting: false,
+  savedItems: [],
 
   setCurrentObject: (object) => set({ 
     currentObject: object, 
@@ -56,4 +60,11 @@ export const useAppStore = create<AppState>((set) => ({
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
   toggleSfxMute: () => set((state) => ({ isSfxMuted: !state.isSfxMuted })),
   setExporting: (exporting) => set({ isExporting: exporting }),
+  setSavedItems: (items) => set({ savedItems: items }),
+  refreshSavedItems: () => {
+    // Dynamically import to avoid circular dependency
+    import('../utils/storage').then(({ getSavedBlueprints }) => {
+      set({ savedItems: getSavedBlueprints() });
+    });
+  },
 }));

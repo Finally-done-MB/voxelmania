@@ -37,6 +37,8 @@ export function ObjectNameOverlay() {
       }
     }, [isScrapped, currentObject]);
     
+    const refreshSavedItems = useAppStore((state) => state.refreshSavedItems);
+    
     const handleSaveBlueprint = useCallback((e: React.MouseEvent) => {
       e.stopPropagation();
       if (currentObject) {
@@ -46,11 +48,13 @@ export function ObjectNameOverlay() {
         
         // Show feedback only if actually saved (not duplicate)
         if (afterCount > beforeCount) {
+          // Update gallery immediately
+          refreshSavedItems();
           setShowSavedFeedback(true);
           setTimeout(() => setShowSavedFeedback(false), 2000);
         }
       }
-    }, [currentObject]);
+    }, [currentObject, refreshSavedItems]);
 
     const handleSave = useCallback(() => {
       if (editValue.trim() && updateCurrentObjectName) {
