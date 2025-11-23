@@ -503,3 +503,125 @@ function generateAsymmetricAnimal(builder: VoxelBuilder, palette: Palette) {
     }
   }
 }
+
+export function generateWolf(): VoxelObjectData {
+  const palette = getRandomPalette('animal');
+  const builder = new VoxelBuilder(palette);
+  
+  // Wolf-specific proportions: leaner, more athletic
+  const bodyLen = randomRange(8, 12);
+  const bodyWidth = randomRange(3, 4); // Narrower than generic quadruped
+  const bodyHeight = randomRange(3, 4); // Lower profile
+  const legHeight = randomRange(4, 6); // Taller legs for wolf-like stance
+  
+  const bodyY = legHeight;
+  const bodyX = 0;
+  const bodyZ = 0;
+
+  // Lean, elongated body
+  generateQuadrupedBody(builder, bodyX, bodyY, bodyZ, bodyLen, bodyWidth, bodyHeight, palette);
+
+  // Legs - more defined, with slight bend
+  const legW = randomRange(1, 2);
+  const frontLegZ = bodyLen / 2 - 2;
+  const backLegZ = -bodyLen / 2 + 1;
+  
+  // Front Left
+  builder.addBox(-bodyWidth/2, 0, frontLegZ, legW, legHeight, legW, palette.secondary);
+  // Front Right
+  builder.addBox(bodyWidth/2 - legW, 0, frontLegZ, legW, legHeight, legW, palette.secondary);
+  // Back Left
+  builder.addBox(-bodyWidth/2, 0, backLegZ, legW, legHeight, legW, palette.secondary);
+  // Back Right
+  builder.addBox(bodyWidth/2 - legW, 0, backLegZ, legW, legHeight, legW, palette.secondary);
+
+  // Paws (slightly larger)
+  builder.addBox(-bodyWidth/2 - 1, 0, frontLegZ - 1, legW + 2, 1, legW + 2, palette.dark);
+  builder.addBox(bodyWidth/2 - legW - 1, 0, frontLegZ - 1, legW + 2, 1, legW + 2, palette.dark);
+  builder.addBox(-bodyWidth/2 - 1, 0, backLegZ - 1, legW + 2, 1, legW + 2, palette.dark);
+  builder.addBox(bodyWidth/2 - legW - 1, 0, backLegZ - 1, legW + 2, 1, legW + 2, palette.dark);
+
+  // Head - elongated snout
+  const headY = bodyY + bodyHeight - 1;
+  const headZ = bodyLen / 2 + 3;
+  const headWidth = 3;
+  const headHeight = 3;
+  
+  // Main head block
+  builder.addBox(-headWidth/2, headY, headZ - 2, headWidth, headHeight, 4, palette.primary);
+  
+  // Elongated snout (wolf characteristic)
+  const snoutLength = 4;
+  for (let i = 0; i < snoutLength; i++) {
+    const snoutWidth = Math.max(1, 2 - Math.floor(i / 2));
+    builder.addBox(-snoutWidth/2, headY + 1, headZ + 2 + i, snoutWidth, 1, 1, palette.primary);
+  }
+  
+  // Nose (black)
+  builder.addVoxel(0, headY + 1, headZ + 2 + snoutLength, palette.dark);
+  
+  // Eyes (more forward-facing, amber/yellow)
+  builder.addVoxel(-1, headY + 2, headZ + 1, '#FFD700');
+  builder.addVoxel(1, headY + 2, headZ + 1, '#FFD700');
+  builder.addVoxel(-1, headY + 2, headZ + 2, '#000000');
+  builder.addVoxel(1, headY + 2, headZ + 2, '#000000');
+  
+  // Pointed triangular ears (wolf characteristic)
+  const earHeight = 3;
+  // Left ear
+  for (let i = 0; i < earHeight; i++) {
+    const earWidth = Math.max(1, earHeight - i);
+    builder.addBox(-headWidth/2 - 1, headY + headHeight + i, headZ - 1, earWidth, 1, 1, palette.primary);
+  }
+  // Right ear
+  for (let i = 0; i < earHeight; i++) {
+    const earWidth = Math.max(1, earHeight - i);
+    builder.addBox(headWidth/2, headY + headHeight + i, headZ - 1, earWidth, 1, 1, palette.primary);
+  }
+  
+  // Inner ear detail (lighter color)
+  builder.addVoxel(-headWidth/2, headY + headHeight + 1, headZ - 1, palette.accent);
+  builder.addVoxel(headWidth/2 - 1, headY + headHeight + 1, headZ - 1, palette.accent);
+
+  // Neck (slightly longer)
+  builder.addBox(-1, bodyY + 1, bodyLen/2 - 1, 2, 3, 2, palette.primary);
+
+  // Bushy tail (wolf characteristic)
+  const tailLength = randomRange(5, 8);
+  const tailBaseY = bodyY + bodyHeight - 1;
+  const tailBaseZ = -bodyLen/2;
+  
+  // Tail base (thicker)
+  builder.addBox(-2, tailBaseY, tailBaseZ, 4, 3, 2, palette.secondary);
+  
+  // Tail segments (getting thinner, creating bushy effect)
+  for (let i = 0; i < tailLength; i++) {
+    const segmentWidth = Math.max(2, 4 - Math.floor(i / 2));
+    const segmentHeight = Math.max(2, 3 - Math.floor(i / 3));
+    builder.addBox(-segmentWidth/2, tailBaseY, tailBaseZ - i - 1, segmentWidth, segmentHeight, 1, palette.secondary);
+    
+    // Add some fluffiness with extra voxels
+    if (i % 2 === 0 && i < tailLength - 2) {
+      builder.addVoxel(-segmentWidth/2 - 1, tailBaseY + 1, tailBaseZ - i - 1, palette.secondary);
+      builder.addVoxel(segmentWidth/2, tailBaseY + 1, tailBaseZ - i - 1, palette.secondary);
+    }
+  }
+
+  // Fur pattern (optional spots/markings)
+  if (randomBoolean(0.6)) {
+    // Add some darker markings on the back
+    for (let i = 0; i < 3; i++) {
+      const markX = randomRange(-bodyWidth/2 + 1, bodyWidth/2 - 1);
+      const markZ = randomRange(-bodyLen/2 + 1, bodyLen/2 - 1);
+      builder.addVoxel(markX, bodyY + bodyHeight, markZ, palette.dark);
+    }
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    name: `Cyber Wolf`,
+    category: 'animal',
+    createdAt: Date.now(),
+    voxels: builder.voxels
+  };
+}

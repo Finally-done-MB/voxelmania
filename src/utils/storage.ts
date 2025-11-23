@@ -13,6 +13,12 @@ export function getSavedBlueprints(): VoxelObjectData[] {
   return data ? JSON.parse(data) : [];
 }
 
+export function deleteBlueprint(blueprintId: string) {
+  const existing = getSavedBlueprints();
+  const updated = existing.filter(item => item.id !== blueprintId);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+}
+
 export function exportBlueprint(object: VoxelObjectData) {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(object));
   const downloadAnchorNode = document.createElement('a');

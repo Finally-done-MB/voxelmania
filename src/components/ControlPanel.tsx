@@ -3,15 +3,15 @@ import {
   Bot, Rocket, Cat, Skull, 
   Hammer, RefreshCw, Play, Pause, Save, 
   Download, FolderOpen, Menu, X,
-  Volume2, VolumeX
+  Volume2, VolumeX, Trash2, Zap
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { generateRobot } from '../generators/robotGenerator';
 import { generateSpaceship } from '../generators/spaceshipGenerator';
-import { generateAnimal } from '../generators/animalGenerator';
+import { generateAnimal, generateWolf } from '../generators/animalGenerator';
 import { generateMonster } from '../generators/monsterGenerator';
 import type { GeneratorCategory, VoxelObjectData } from '../types';
-import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint } from '../utils/storage';
+import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint, deleteBlueprint } from '../utils/storage';
 import { 
   resumeAudio, startAmbientMusic, stopAmbientMusic, 
   playExplosionSound, playCrumbleSound 
@@ -29,7 +29,8 @@ export function ControlPanel() {
     currentObject, setCurrentObject, 
     isAutoRotating, toggleAutoRotation,
     setScrapped, isScrapped,
-    isMuted, toggleMute
+    isMuted, toggleMute,
+    isSfxMuted, toggleSfxMute
   } = useAppStore();
   
   const [activeCategory, setActiveCategory] = useState<GeneratorCategory>('robot');
@@ -59,7 +60,7 @@ export function ControlPanel() {
        { ...generateRobot(), name: 'Scout Bot' },
        { ...generateSpaceship(), name: 'Star Fighter' },
        { ...generateSpaceship(), name: 'Cargo Hauler' },
-       { ...generateAnimal(), name: 'Cyber Wolf' },
+       generateWolf(), // Uses dedicated wolf generator
        { ...generateMonster(), name: 'Slime Blob' },
     ];
     setPresets(presetItems);
@@ -87,7 +88,7 @@ export function ControlPanel() {
 
   const handleScrap = (mode: 'explode' | 'crumble') => {
      if (currentObject && !isScrapped) {
-       if (!isMuted) {
+       if (!isSfxMuted) {
          if (mode === 'explode') playExplosionSound();
          else playCrumbleSound();
        }
@@ -98,6 +99,11 @@ export function ControlPanel() {
   const handleToggleMute = () => {
     resumeAudio();
     toggleMute();
+  };
+
+  const handleToggleSfxMute = () => {
+    resumeAudio();
+    toggleSfxMute();
   };
 
   const handleSave = () => {
@@ -133,6 +139,14 @@ export function ControlPanel() {
               alert("Invalid blueprint file");
           }
       }
+  };
+
+  const handleDelete = (e: React.MouseEvent, blueprintId: string) => {
+    e.stopPropagation(); // Prevent triggering the load action
+    if (confirm('Are you sure you want to delete this blueprint?')) {
+      deleteBlueprint(blueprintId);
+      setSavedItems(getSavedBlueprints());
+    }
   };
 
   return (
@@ -230,9 +244,17 @@ export function ControlPanel() {
           <button 
             onClick={handleToggleMute}
             className={`p-2 rounded-md transition-colors ${isMuted ? 'text-gray-500 hover:bg-gray-700' : 'text-blue-400 bg-blue-900/30 hover:bg-blue-900/50'}`}
-            title={isMuted ? "Unmute Audio" : "Mute Audio"}
+            title={isMuted ? "Unmute Music" : "Mute Music"}
           >
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+          
+          <button 
+            onClick={handleToggleSfxMute}
+            className={`p-2 rounded-md transition-colors ${isSfxMuted ? 'text-gray-500 hover:bg-gray-700' : 'text-orange-400 bg-orange-900/30 hover:bg-orange-900/50'}`}
+            title={isSfxMuted ? "Enable SFX" : "Disable SFX"}
+          >
+            {isSfxMuted ? <Zap size={18} className="opacity-50" /> : <Zap size={18} />}
           </button>
         </div>
 
@@ -281,17 +303,30 @@ export function ControlPanel() {
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                 <div className="flex flex-col gap-2">
                     {(activeTab === 'presets' ? presets : savedItems).map((item, idx) => (
-                        <button 
+                        <div
                             key={item.id + idx}
-                            onClick={() => handleLoad(item)}
-                            className="flex items-center justify-between text-left p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors text-sm border border-gray-700 hover:border-gray-500 group"
+                            className="flex items-center gap-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors text-sm border border-gray-700 hover:border-gray-500 group"
                         >
-                            <div>
-                                <div className="font-medium text-gray-300 group-hover:text-white">{item.name}</div>
-                                <div className="text-[10px] text-gray-500 capitalize">{item.category}</div>
-                            </div>
-                            <Play size={14} className="opacity-0 group-hover:opacity-100 text-blue-400 transition-opacity" />
-                        </button>
+                            <button 
+                                onClick={() => handleLoad(item)}
+                                className="flex-1 flex items-center justify-between text-left p-3"
+                            >
+                                <div>
+                                    <div className="font-medium text-gray-300 group-hover:text-white">{item.name}</div>
+                                    <div className="text-[10px] text-gray-500 capitalize">{item.category}</div>
+                                </div>
+                                <Play size={14} className="opacity-0 group-hover:opacity-100 text-blue-400 transition-opacity" />
+                            </button>
+                            {activeTab === 'saved' && (
+                                <button
+                                    onClick={(e) => handleDelete(e, item.id)}
+                                    className="p-2 mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Delete blueprint"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
                     ))}
                     {activeTab === 'saved' && savedItems.length === 0 && (
                         <div className="text-center text-gray-500 text-xs py-4 italic">No saved blueprints yet.</div>
