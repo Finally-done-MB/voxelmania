@@ -526,31 +526,84 @@ export function ControlPanel() {
             
             {activeTab === 'saved' ? (
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-                <div className="grid grid-cols-2 gap-1.5 md:gap-2">
-                  {savedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-gray-800/50 rounded-lg p-1.5 md:p-2 border border-gray-700 hover:border-gray-500 transition-colors cursor-pointer group"
-                      onClick={() => handleLoad(item)}
-                    >
-                      <div className="text-[10px] md:text-xs font-medium text-gray-300 group-hover:text-white truncate mb-0.5 md:mb-1">
-                        {item.name}
-                      </div>
-                      <div className="text-[9px] md:text-[10px] text-gray-500 capitalize">
-                        {item.category}
-                      </div>
-                      {item.seed && (
-                        <div className="text-[8px] md:text-[9px] text-gray-600 font-mono mt-0.5 md:mt-1">
-                          #{item.seed.toString().slice(-6)}
+                <div className="flex flex-col gap-2">
+                    {savedItems.map((item, idx) => (
+                        <div
+                            key={item.id + idx}
+                            className="flex items-center gap-1 md:gap-1.5 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors text-sm border border-gray-700 hover:border-gray-500 group"
+                        >
+                            <button 
+                                onClick={() => handleLoad(item)}
+                                className="flex-1 flex items-center justify-between text-left p-2 md:p-2"
+                            >
+                                <div className="flex-1">
+                                    {editingName === item.id ? (
+                                      <input
+                                        type="text"
+                                        value={editNameValue}
+                                        onChange={(e) => setEditNameValue(e.target.value)}
+                                        onBlur={() => handleSaveName(item.id)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveName(item.id);
+                                          if (e.key === 'Escape') handleCancelEdit();
+                                        }}
+                                        className="w-full px-1 py-0.5 bg-gray-700 border border-blue-500 rounded text-xs text-white focus:outline-none"
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <>
+                                        <div className="font-medium text-gray-300 group-hover:text-white">{item.name}</div>
+                                        <div className="text-[10px] text-gray-500 capitalize">{item.category}</div>
+                                        {item.seed && (
+                                          <div className="text-[9px] text-gray-600 font-mono mt-0.5">
+                                            Seed: {item.seed}
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                </div>
+                                <Play size={14} className="opacity-0 group-hover:opacity-100 text-blue-400 transition-opacity ml-2" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  resumeAudio();
+                                  handleEditName(item);
+                                }}
+                                className="p-1.5 md:p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                title="Edit name"
+                            >
+                                <Edit2 size={11} className="md:w-3 md:h-3" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                  resumeAudio();
+                                  handleToggleFavorite(e, item.id);
+                                }}
+                                className={`p-1.5 md:p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/20 rounded-md transition-colors ${
+                                  item.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
+                                }`}
+                                title={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                            >
+                                <Star size={12} className={`md:w-3.5 md:h-3.5 ${item.isFavorite ? 'fill-yellow-400' : ''}`} />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                  resumeAudio();
+                                  handleDelete(e, item.id);
+                                }}
+                                className="p-1.5 md:p-2 mr-1 md:mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                title="Delete blueprint"
+                            >
+                                <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
+                            </button>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                  {savedItems.length === 0 && (
-                    <div className="col-span-2 text-center text-gray-500 text-xs py-4 italic">
-                      No saved blueprints yet. Save some to see them here.
-                    </div>
-                  )}
+                    ))}
+                    {savedItems.length === 0 && (
+                        <div className="text-center text-gray-500 text-xs py-4 italic">
+                          No saved blueprints yet. Save some to see them here.
+                        </div>
+                    )}
                 </div>
               </div>
             ) : activeTab === 'stats' ? (
