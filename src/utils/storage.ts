@@ -1,42 +1,51 @@
 import type { VoxelObjectData } from '../types';
+import { LocalStorageAdapter } from './storage.localStorage';
+import type { IStorage } from './storage.interface';
 
-const STORAGE_KEY = 'voxel_forge_blueprints';
+// Default storage instance (can be swapped for testing or different implementations)
+let storageInstance: IStorage = new LocalStorageAdapter();
 
+/**
+ * Set storage implementation (useful for testing or different backends)
+ * Follows Dependency Inversion Principle
+ */
+export function setStorage(storage: IStorage): void {
+  storageInstance = storage;
+}
+
+/**
+ * Get current storage instance
+ */
+export function getStorage(): IStorage {
+  return storageInstance;
+}
+
+// Legacy function exports for backward compatibility
 export function saveBlueprint(object: VoxelObjectData) {
-  const existing = getSavedBlueprints();
-  const updated = [...existing, object];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  storageInstance.save(object);
 }
 
 export function getSavedBlueprints(): VoxelObjectData[] {
-  const data = localStorage.getItem(STORAGE_KEY);
-  const blueprints = data ? JSON.parse(data) : [];
-  // Sort by createdAt descending (newest first)
-  return blueprints.sort((a: VoxelObjectData, b: VoxelObjectData) => 
-    (b.createdAt || 0) - (a.createdAt || 0)
-  );
+  return storageInstance.getAll();
 }
 
 export function deleteBlueprint(blueprintId: string) {
-  const existing = getSavedBlueprints();
-  const updated = existing.filter(item => item.id !== blueprintId);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  storageInstance.delete(blueprintId);
 }
 
 export function toggleFavorite(blueprintId: string) {
-  const existing = getSavedBlueprints();
-  const updated = existing.map(item => 
-    item.id === blueprintId 
-      ? { ...item, isFavorite: !item.isFavorite }
-      : item
-  );
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  return updated;
+  const blueprint = storageInstance.getById(blueprintId);
+  if (!blueprint) return [];
+  
+  storageInstance.update(blueprintId, {
+    isFavorite: !blueprint.isFavorite,
+  });
+  
+  return storageInstance.getAll();
 }
 
 export function getFavoriteBlueprints(): VoxelObjectData[] {
-  // getSavedBlueprints already sorts by date, so favorites will be sorted too
-  return getSavedBlueprints().filter(item => item.isFavorite);
+  return storageInstance.getAll().filter(item => item.isFavorite);
 }
 
 export function exportBlueprint(object: VoxelObjectData) {
