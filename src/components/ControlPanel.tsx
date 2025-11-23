@@ -16,7 +16,7 @@ import { exportImage } from '../utils/imageExport';
 import { getStats, trackCreation } from '../utils/stats';
 import { setSeed } from '../utils/voxelBuilder';
 import { 
-  resumeAudio, startAmbientMusic, stopAmbientMusic, 
+  initAudio, resumeAudio, startAmbientMusic, stopAmbientMusic, setMusicVolume, setSfxVolume,
   playExplosionSound, playCrumbleSound 
 } from '../utils/audio';
 
@@ -39,7 +39,7 @@ export function ControlPanel() {
   const [activeCategory, setActiveCategory] = useState<GeneratorCategory>('robot');
   const [isOpen, setIsOpen] = useState(true);
   const [savedItems, setSavedItems] = useState<VoxelObjectData[]>([]);
-  const [activeTab, setActiveTab] = useState<'saved' | 'favorites' | 'stats' | 'gallery'>('saved');
+  const [activeTab, setActiveTab] = useState<'saved' | 'favorites' | 'stats'>('saved');
   const [seedInput, setSeedInput] = useState('');
   const [copiedSeed, setCopiedSeed] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
@@ -47,45 +47,71 @@ export function ControlPanel() {
   const [seedSectionOpen, setSeedSectionOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle ambient music state - only after user interaction
+  // Handle ambient music state (volume control)
   useEffect(() => {
-    let mounted = true;
-    const updateMusic = async () => {
-      // Update global mute state immediately
-      (window as any).__isMuted = isMuted;
-      
+    const audioCtx = (window as any).__audioCtx;
+    if (!audioCtx) {
+      // Audio not initialized yet - initialize it
+      initAudio();
+      startAmbientMusic();
+      // Set initial volume based on mute state
       if (isMuted) {
-        // Stop music immediately when muted
-        stopAmbientMusic();
+        setMusicVolume(0);
       } else {
-        try {
-          // Only start music if audio context is already running (user has interacted)
-          const audioCtx = (window as any).__audioCtx;
-          if (audioCtx && audioCtx.state === 'running') {
-            await resumeAudio();
-            if (mounted && !isMuted) { // Double-check not muted after async
-              startAmbientMusic();
-            }
-          }
-          // If audio context is suspended, music will start on next user interaction
-        } catch (error) {
-          console.error('Error starting ambient music:', error);
-        }
+        setMusicVolume(0.5);
       }
-    };
-    updateMusic();
-    return () => {
-      mounted = false;
-    };
+      // Set initial SFX volume (always on by default)
+      setSfxVolume(isSfxMuted ? 0 : 1);
+      return;
+    }
+    
+    if (isMuted) {
+      // Mute: fade out volume (music keeps playing, just silent)
+      setMusicVolume(0);
+    } else {
+      // Unmute: resume audio context and ensure music is playing
+      resumeAudio().then(() => {
+        // Make sure music is actually playing (start if not already)
+        const audioCtx = (window as any).__audioCtx;
+        if (audioCtx && audioCtx.state === 'running') {
+          // Only start music if it's not already playing
+          startAmbientMusic();
+          // Fade in volume to 0.5
+          setMusicVolume(0.5);
+        } else {
+          // If context isn't running yet, wait a bit and try again
+          setTimeout(() => {
+            startAmbientMusic();
+            setMusicVolume(0.5);
+          }, 100);
+        }
+      });
+    }
   }, [isMuted]);
 
-  // Generate initial object on mount
+  // Handle SFX volume (independent of music)
   useEffect(() => {
-    // Initialize mute state for audio system
-    (window as any).__isMuted = isMuted;
-    // Generate initial object without waiting for audio (audio can't start on page load anyway)
+    const audioCtx = (window as any).__audioCtx;
+    if (!audioCtx) return; // Audio not initialized yet
+    
+    if (isSfxMuted) {
+      // Mute SFX: fade out volume
+      setSfxVolume(0);
+    } else {
+      // Unmute SFX: fade in volume to 1
+      setSfxVolume(1);
+    }
+  }, [isSfxMuted]);
+
+  // Generate initial object on mount and start muted music
+  useEffect(() => {
     generateInitialObject();
     setSavedItems(getSavedBlueprints());
+    // Initialize audio and start music (muted) - this works with autoplay policy
+    initAudio();
+    startAmbientMusic();
+    // Set initial volume to 0 (muted) since isMuted defaults to true
+    setMusicVolume(0);
   }, []);
 
   // Generate object without audio initialization (for initial load)
@@ -111,9 +137,8 @@ export function ControlPanel() {
     trackCreation(newObject.category);
   };
 
-  const handleGenerate = async (seed?: number) => {
-    // Ensure audio context is ready on user interaction and start music if not muted
-    await resumeAudio();
+  const handleGenerate = (seed?: number) => {
+    resumeAudio(); // Ensure audio context is ready on user interaction
     let newObject: VoxelObjectData;
     switch (activeCategory) {
       case 'robot':
@@ -178,11 +203,10 @@ export function ControlPanel() {
     setEditNameValue('');
   };
 
-  const handleScrap = async (mode: 'explode' | 'crumble') => {
-     // Initialize audio on any user interaction
-     await resumeAudio();
+  const handleScrap = (mode: 'explode' | 'crumble') => {
      if (currentObject && !isScrapped) {
        if (!isSfxMuted) {
+         // SFX functions handle their own audio context initialization
          if (mode === 'explode') playExplosionSound();
          else playCrumbleSound();
        }
@@ -190,18 +214,15 @@ export function ControlPanel() {
      }
   };
   
-  const handleToggleMute = async () => {
-    try {
-      // Toggle the mute state first
-      toggleMute();
-      // Then ensure audio context is ready (needed for unmuting)
-      await resumeAudio();
-      // The useEffect will handle starting/stopping music based on the new state
-    } catch (error) {
-      console.error('Error toggling mute:', error);
-      // Still toggle the state even if audio resume fails
-      toggleMute();
+  const handleToggleMute = () => {
+    // Ensure audio is initialized (should already be, but just in case)
+    if (!(window as any).__audioCtx) {
+      initAudio();
+      startAmbientMusic();
     }
+    // Resume audio context if suspended (needed for unmuting)
+    resumeAudio();
+    toggleMute();
   };
 
   const handleToggleSfxMute = () => {
@@ -209,33 +230,29 @@ export function ControlPanel() {
     toggleSfxMute();
   };
 
-  const handleSave = async () => {
-    // Initialize audio on any user interaction
-    await resumeAudio();
+  const handleSave = () => {
+    resumeAudio(); // Ensure audio context is ready on user interaction
     if (currentObject) {
       saveBlueprint(currentObject);
       setSavedItems(getSavedBlueprints());
     }
   };
   
-  const handleLoad = async (item: VoxelObjectData) => {
-      // Initialize audio on any user interaction
-      await resumeAudio();
+  const handleLoad = (item: VoxelObjectData) => {
+      resumeAudio(); // Ensure audio context is ready on user interaction
       setCurrentObject(item);
       // Infer category from item to update UI selection
       setActiveCategory(item.category);
       // If item has a seed, we could optionally regenerate from it, but for now just load as-is
   };
   
-  const handleExport = async () => {
-    // Initialize audio on any user interaction
-    await resumeAudio();
+  const handleExport = () => {
+    resumeAudio(); // Ensure audio context is ready on user interaction
     if (currentObject) exportBlueprint(currentObject);
   };
   
-  const handleImportClick = async () => {
-      // Initialize audio on any user interaction
-      await resumeAudio();
+  const handleImportClick = () => {
+      resumeAudio(); // Ensure audio context is ready on user interaction
       fileInputRef.current?.click();
   };
   
@@ -267,9 +284,8 @@ export function ControlPanel() {
     setSavedItems(getSavedBlueprints());
   };
 
-  const handleExportImage = async () => {
-    // Initialize audio on any user interaction
-    await resumeAudio();
+  const handleExportImage = () => {
+    resumeAudio(); // Ensure audio context is ready on user interaction
     if (currentObject) {
       exportImage();
     }
@@ -292,11 +308,11 @@ export function ControlPanel() {
       {/* Mobile Toggle */}
       <button 
         className="fixed top-4 right-4 z-50 p-2 bg-gray-800 rounded-full md:hidden text-white"
-        onClick={async () => {
-          setIsOpen(!isOpen);
-          // Initialize audio on any user interaction
-          await resumeAudio();
-        }}
+            onClick={() => {
+              setIsOpen(!isOpen);
+              // Initialize audio on any user interaction
+              resumeAudio();
+            }}
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -320,10 +336,10 @@ export function ControlPanel() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
-              onClick={async () => {
+              onClick={() => {
                 setActiveCategory(cat.id);
                 // Initialize audio on any user interaction
-                await resumeAudio();
+                resumeAudio();
               }}
               className={`
                 flex flex-col items-center justify-center p-2 md:p-2 rounded-xl transition-all border
@@ -396,10 +412,7 @@ export function ControlPanel() {
         {/* Main Actions */}
         <div className="grid grid-cols-2 gap-2 md:gap-2 mt-2 md:mt-3">
            <button 
-             onClick={async () => {
-               await handleGenerate();
-               // Audio will start automatically via resumeAudio in handleGenerate
-             }}
+             onClick={() => handleGenerate()}
              className="col-span-2 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white p-3 md:p-3 rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 mb-1"
            >
              <RefreshCw size={18} className="md:w-4 md:h-4" />
@@ -407,9 +420,7 @@ export function ControlPanel() {
            </button>
 
            <button 
-             onClick={async () => {
-               await handleScrap('crumble');
-             }}
+             onClick={() => handleScrap('crumble')}
              className="flex flex-col items-center justify-center gap-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 p-2 md:p-2 rounded-xl border border-orange-500/50 transition-all active:scale-95"
              disabled={isScrapped}
             >
@@ -418,9 +429,7 @@ export function ControlPanel() {
            </button>
 
            <button 
-             onClick={async () => {
-               await handleScrap('explode');
-             }}
+             onClick={() => handleScrap('explode')}
              className="flex flex-col items-center justify-center gap-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 md:p-2 rounded-xl border border-red-500/50 transition-all active:scale-95"
              disabled={isScrapped}
             >
@@ -432,9 +441,9 @@ export function ControlPanel() {
         {/* Playback Controls */}
         <div className="flex gap-1 md:gap-1.5 bg-gray-800 p-1.5 md:p-1.5 rounded-lg mt-auto">
           <button 
-            onClick={async () => {
+            onClick={() => {
               // Initialize audio on any user interaction
-              await resumeAudio();
+              resumeAudio();
               toggleAutoRotation();
             }}
             className="flex-1 flex items-center justify-center gap-1 md:gap-1.5 p-1.5 md:p-1.5 hover:bg-gray-700 rounded-md transition-colors"
@@ -499,19 +508,13 @@ export function ControlPanel() {
                   onClick={() => setActiveTab('saved')}
                   className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'saved' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
                >
-                 My Blueprints
+                 Gallery
                </button>
                <button 
                   onClick={() => setActiveTab('favorites')}
                   className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'favorites' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
                >
                  Favorites
-               </button>
-               <button 
-                  onClick={() => setActiveTab('gallery')}
-                  className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'gallery' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-               >
-                 Gallery
                </button>
                <button 
                   onClick={() => setActiveTab('stats')}
@@ -521,16 +524,14 @@ export function ControlPanel() {
                </button>
             </div>
             
-            {activeTab === 'gallery' ? (
+            {activeTab === 'saved' ? (
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                 <div className="grid grid-cols-2 gap-1.5 md:gap-2">
                   {savedItems.map((item) => (
                     <div
                       key={item.id}
                       className="bg-gray-800/50 rounded-lg p-1.5 md:p-2 border border-gray-700 hover:border-gray-500 transition-colors cursor-pointer group"
-                      onClick={async () => {
-                        await handleLoad(item);
-                      }}
+                      onClick={() => handleLoad(item)}
                     >
                       <div className="text-[10px] md:text-xs font-medium text-gray-300 group-hover:text-white truncate mb-0.5 md:mb-1">
                         {item.name}
@@ -636,9 +637,9 @@ export function ControlPanel() {
                                 <Play size={14} className="opacity-0 group-hover:opacity-100 text-blue-400 transition-opacity ml-2" />
                             </button>
                             <button
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
-                                  await resumeAudio();
+                                  resumeAudio();
                                   handleEditName(item);
                                 }}
                                 className="p-1.5 md:p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors opacity-0 group-hover:opacity-100"
@@ -647,8 +648,8 @@ export function ControlPanel() {
                                 <Edit2 size={11} className="md:w-3 md:h-3" />
                             </button>
                             <button
-                                onClick={async (e) => {
-                                  await resumeAudio();
+                                onClick={(e) => {
+                                  resumeAudio();
                                   handleToggleFavorite(e, item.id);
                                 }}
                                 className={`p-1.5 md:p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/20 rounded-md transition-colors ${
@@ -659,8 +660,8 @@ export function ControlPanel() {
                                 <Star size={12} className={`md:w-3.5 md:h-3.5 ${item.isFavorite ? 'fill-yellow-400' : ''}`} />
                             </button>
                             <button
-                                onClick={async (e) => {
-                                  await resumeAudio();
+                                onClick={(e) => {
+                                  resumeAudio();
                                   handleDelete(e, item.id);
                                 }}
                                 className="p-1.5 md:p-2 mr-1 md:mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"

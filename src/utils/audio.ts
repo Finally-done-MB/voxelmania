@@ -1,6 +1,7 @@
 // Web Audio API Context
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let sfxGain: GainNode | null = null; // Separate gain for SFX (independent of music)
 let compressor: DynamicsCompressorNode | null = null;
 let reverbNode: ConvolverNode | null = null;
 let ambientInterval: ReturnType<typeof setInterval> | null = null;
@@ -24,7 +25,11 @@ export const initAudio = () => {
 
   // Master Chain: Source -> Compressor -> MasterGain -> Reverb -> Destination
   masterGain = audioCtx.createGain();
-  masterGain.gain.value = 0.5; // Default volume
+  masterGain.gain.value = 0; // Start muted (muted autoplay is allowed)
+
+  // SFX Gain: Independent of music volume
+  sfxGain = audioCtx.createGain();
+  sfxGain.gain.value = 1; // SFX always at full volume (controlled by isSfxMuted separately)
 
   compressor = audioCtx.createDynamicsCompressor();
   compressor.threshold.value = -24;
@@ -38,9 +43,12 @@ export const initAudio = () => {
   reverbNode.buffer = createReverbImpulse(REVERB_SECONDS, 2.0); // 2.0 decay
 
   // Connect the chain
-  // Dry signal path: Compressor -> Master -> Destination
+  // Music path: Compressor -> MasterGain -> Destination
   compressor.connect(masterGain);
   masterGain.connect(audioCtx.destination);
+
+  // SFX path: SfxGain -> Destination (SFX connects directly to sfxGain, bypassing masterGain)
+  sfxGain.connect(audioCtx.destination);
 
   // Wet signal path (Reverb): Master -> Reverb -> Destination
   // We send a portion of master to reverb for that "spacey" feel
@@ -52,26 +60,27 @@ export const initAudio = () => {
 };
 
 export const resumeAudio = async () => {
-  if (!audioCtx) initAudio();
+  if (!audioCtx) {
+    initAudio();
+    // Start music immediately (muted autoplay is allowed)
+    startAmbientMusic();
+  }
   if (audioCtx?.state === 'suspended') {
     await audioCtx.resume();
-  }
-  // After resuming, start music if not muted
-  // Check mute state - if undefined, default to false (not muted)
-  const isMuted = (window as any).__isMuted !== undefined ? (window as any).__isMuted : false;
-  if (!isMuted && audioCtx?.state === 'running') {
-    startAmbientMusic();
   }
 };
 
 // --- Generative Ambient Music ---
 
 export const startAmbientMusic = () => {
+  // Don't restart if already playing
   if (ambientInterval) {
-    clearTimeout(ambientInterval);
-    ambientInterval = null;
+    return; // Music is already playing
   }
+  
   if (!audioCtx) initAudio();
+  
+  // Try to resume if suspended (needed for audio to actually play)
   if (audioCtx?.state === 'suspended') {
     audioCtx.resume().catch(console.error);
   }
@@ -85,6 +94,7 @@ export const startAmbientMusic = () => {
 
   scheduleNextNote();
 };
+
 
 export const stopAmbientMusic = () => {
   // Stop the interval immediately
@@ -103,70 +113,96 @@ export const stopAmbientMusic = () => {
   });
   activeOscillators = [];
   
-  // Also fade out master gain quickly
+  // Fade out master gain quickly (mute)
   if (masterGain && audioCtx) {
     const now = audioCtx.currentTime;
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(masterGain.gain.value, now);
     masterGain.gain.linearRampToValueAtTime(0, now + 0.05); // Very quick fade (50ms)
-    // Reset gain after fade
-    setTimeout(() => {
-      if (masterGain) {
-        masterGain.gain.setValueAtTime(0.5, audioCtx?.currentTime || 0);
-      }
-    }, 100);
+  }
+};
+
+// Set volume (for unmuting)
+export const setMusicVolume = (volume: number) => {
+  if (masterGain && audioCtx) {
+    const now = audioCtx.currentTime;
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.linearRampToValueAtTime(volume, now + 0.1); // Smooth fade
+  }
+};
+
+// Set SFX volume (independent of music)
+export const setSfxVolume = (volume: number) => {
+  if (sfxGain && audioCtx) {
+    const now = audioCtx.currentTime;
+    sfxGain.gain.cancelScheduledValues(now);
+    sfxGain.gain.setValueAtTime(sfxGain.gain.value, now);
+    sfxGain.gain.linearRampToValueAtTime(volume, now + 0.1); // Smooth fade
   }
 };
 
 const playAmbientNote = () => {
-  if (!audioCtx || !masterGain || !compressor) return;
+  if (!audioCtx || !masterGain || !compressor) {
+    console.warn('Cannot play ambient note: audio nodes not initialized', { audioCtx: !!audioCtx, masterGain: !!masterGain, compressor: !!compressor });
+    return;
+  }
 
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  
-  // Track this oscillator for immediate stopping
-  activeOscillators.push(osc);
-  
-  // Pick a random note from the scale
-  const baseFreq = SCALE[Math.floor(Math.random() * SCALE.length)];
-  // Randomize octave: -1, 0, or +1
-  const octaveMultiplier = Math.pow(2, Math.floor(Math.random() * 3) - 1);
-  const freq = baseFreq * octaveMultiplier;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    // Track this oscillator for immediate stopping
+    activeOscillators.push(osc);
+    
+    // Pick a random note from the scale
+    const baseFreq = SCALE[Math.floor(Math.random() * SCALE.length)];
+    // Randomize octave: -1, 0, or +1
+    const octaveMultiplier = Math.pow(2, Math.floor(Math.random() * 3) - 1);
+    const freq = baseFreq * octaveMultiplier;
 
-  osc.type = 'triangle'; // Soft, bell-like tone
-  osc.frequency.value = freq;
+    osc.type = 'triangle'; // Soft, bell-like tone
+    osc.frequency.value = freq;
 
-  // Envelope (ADSR)
-  const now = audioCtx.currentTime;
-  const attack = 0.5 + Math.random() * 0.5; // Slow attack
-  const release = 2.0 + Math.random() * 1.0; // Long release
+    // Envelope (ADSR)
+    const now = audioCtx.currentTime;
+    const attack = 0.5 + Math.random() * 0.5; // Slow attack
+    const release = 2.0 + Math.random() * 1.0; // Long release
 
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(0.1, now + attack); // Low volume for ambient
-  gain.gain.exponentialRampToValueAtTime(0.001, now + attack + release);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.1, now + attack); // Low volume for ambient
+    gain.gain.exponentialRampToValueAtTime(0.001, now + attack + release);
 
-  osc.connect(gain);
-  gain.connect(compressor); // Send to compressor (which goes to reverb)
+    osc.connect(gain);
+    gain.connect(compressor); // Music goes through compressor -> masterGain
 
-  osc.start(now);
-  osc.stop(now + attack + release + 1);
-  
-  // Clean up after note finishes
-  osc.onended = () => {
-    gain.disconnect();
-    // Remove from active oscillators list
-    const index = activeOscillators.indexOf(osc);
-    if (index > -1) {
-      activeOscillators.splice(index, 1);
-    }
-  };
+    osc.start(now);
+    osc.stop(now + attack + release + 1);
+    
+    // Clean up after note finishes
+    osc.onended = () => {
+      gain.disconnect();
+      // Remove from active oscillators list
+      const index = activeOscillators.indexOf(osc);
+      if (index > -1) {
+        activeOscillators.splice(index, 1);
+      }
+    };
+  } catch (error) {
+    console.error('Error playing ambient note:', error);
+  }
 };
 
 // --- SFX: Explosion ---
 
 export const playExplosionSound = () => {
-  if (!audioCtx || !compressor) return;
-  resumeAudio();
+  // Initialize audio context if needed (independent of music state)
+  if (!audioCtx) initAudio();
+  if (!compressor) return;
+  // Resume audio context if suspended (needed for SFX to play)
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(console.error);
+  }
 
   const t = audioCtx.currentTime;
   
@@ -192,7 +228,7 @@ export const playExplosionSound = () => {
 
   noise.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
-  noiseGain.connect(compressor);
+  noiseGain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
   
   noise.start(t);
   noise.stop(t + 2);
@@ -208,7 +244,7 @@ export const playExplosionSound = () => {
   subGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
 
   sub.connect(subGain);
-  subGain.connect(compressor);
+  subGain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
 
   sub.start(t);
   sub.stop(t + 0.5);
@@ -217,8 +253,13 @@ export const playExplosionSound = () => {
 // --- SFX: Crumble (Granular) ---
 
 export const playCrumbleSound = () => {
-  if (!audioCtx || !compressor) return;
-  resumeAudio();
+  // Initialize audio context if needed (independent of music state)
+  if (!audioCtx) initAudio();
+  if (!compressor) return;
+  // Resume audio context if suspended (needed for SFX to play)
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(console.error);
+  }
 
   // Play 5-10 small "grains" of sound
   const grains = 5 + Math.floor(Math.random() * 5);
@@ -253,7 +294,7 @@ const playCrumbleGrain = (offset: number) => {
 
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(compressor);
+  gain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
 
   osc.start(t);
   osc.stop(t + 0.15);
@@ -356,7 +397,7 @@ class AudioPoolManager {
     // Create gain node for ambient texture
     this.ambientGainNode = audioCtx.createGain();
     this.ambientGainNode.gain.value = 0;
-    this.ambientGainNode.connect(compressor);
+    this.ambientGainNode.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
     
     // Play granular grains continuously based on activity
     const playGrain = () => {
@@ -421,8 +462,8 @@ class AudioPoolManager {
     this.activityLevel = Math.max(0, this.activityLevel - deltaTime * 0.5);
   }
 
-  processQueue(isMuted: boolean = false): void {
-    if (!audioCtx || !compressor || isMuted) {
+  processQueue(isSfxMuted: boolean = false): void {
+    if (!audioCtx || !compressor || isSfxMuted) {
       this.collisionQueue = [];
       return;
     }
@@ -510,7 +551,7 @@ const playAmbientCollisionGrain = (volume: number, isExplosionBurst: boolean = f
   
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(compressor);
+  gain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
   
   osc.start(t);
   osc.stop(t + duration + 0.01);
@@ -523,9 +564,9 @@ export const addCollisionEvent = (velocity: number, isGround: boolean, particleI
   audioPoolManager.addCollision(velocity, isGround, particleId);
 };
 
-export const processCollisionQueue = (isMuted: boolean = false, deltaTime: number = 0.016) => {
+export const processCollisionQueue = (isSfxMuted: boolean = false, deltaTime: number = 0.016) => {
   audioPoolManager.updateActivityLevel(deltaTime);
-  audioPoolManager.processQueue(isMuted);
+  audioPoolManager.processQueue(isSfxMuted);
 };
 
 export const checkGroundImpact = (y: number): boolean => {
@@ -545,8 +586,13 @@ export const stopDebrisAmbient = () => {
 // --- SFX: Particle Collision ---
 
 const playParticleCollisionSound = (velocity: number) => {
-  if (!audioCtx || !compressor) return;
-  resumeAudio();
+  // Initialize audio context if needed (independent of music state)
+  if (!audioCtx) initAudio();
+  if (!compressor) return;
+  // Resume audio context if suspended (needed for SFX to play)
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(console.error);
+  }
 
   const t = audioCtx.currentTime;
   
@@ -580,7 +626,7 @@ const playParticleCollisionSound = (velocity: number) => {
   
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(compressor);
+  gain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
   
   osc.start(t);
   osc.stop(t + duration + 0.01);
@@ -589,8 +635,13 @@ const playParticleCollisionSound = (velocity: number) => {
 // --- SFX: Click Impact (Pew/Bam) ---
 
 export const playClickImpactSound = () => {
-  if (!audioCtx || !compressor) return;
-  resumeAudio();
+  // Initialize audio context if needed (independent of music state)
+  if (!audioCtx) initAudio();
+  if (!compressor) return;
+  // Resume audio context if suspended (needed for SFX to play)
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(console.error);
+  }
 
   const t = audioCtx.currentTime;
   
@@ -633,7 +684,7 @@ export const playClickImpactSound = () => {
   clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
   
   click.connect(clickGain);
-  clickGain.connect(compressor);
+  clickGain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
   
   click.start(t);
   click.stop(t + 0.03);
@@ -642,8 +693,13 @@ export const playClickImpactSound = () => {
 // --- SFX: Ground Impact ---
 
 export const playGroundImpactSound = (velocity: number) => {
-  if (!audioCtx || !compressor) return;
-  resumeAudio();
+  // Initialize audio context if needed (independent of music state)
+  if (!audioCtx) initAudio();
+  if (!compressor) return;
+  // Resume audio context if suspended (needed for SFX to play)
+  if (audioCtx?.state === 'suspended') {
+    audioCtx.resume().catch(console.error);
+  }
 
   const t = audioCtx.currentTime;
   
@@ -677,7 +733,7 @@ export const playGroundImpactSound = (velocity: number) => {
   
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(compressor);
+  gain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
   
   osc.start(t);
   osc.stop(t + duration + 0.01);
@@ -695,7 +751,7 @@ export const playGroundImpactSound = (velocity: number) => {
     subGain.gain.exponentialRampToValueAtTime(0.001, t + duration * 1.5);
     
     sub.connect(subGain);
-    subGain.connect(compressor);
+    subGain.connect(sfxGain || compressor); // Connect to sfxGain for independent volume control
     
     sub.start(t);
     sub.stop(t + duration * 1.5);

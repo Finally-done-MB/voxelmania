@@ -24,7 +24,7 @@ export const useAppStore = create<AppState>((set) => ({
   isAutoRotating: true,
   isScrapped: false,
   scrapMode: null,
-  isMuted: false, // Music ON by default
+  isMuted: true, // Music starts muted (muted autoplay)
   isSfxMuted: false, // SFX ON by default
   isExporting: false,
 
