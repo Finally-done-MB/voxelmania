@@ -162,7 +162,7 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
       
       // Find particles within radius of click point
       const impactRadius = 3; // Radius of impact
-      const impactForce = 125; // Force magnitude (increased from 25)
+      const impactForce = 250; // Force magnitude (2x increased for more satisfying taps)
       let affectedCount = 0;
       
       rigidBodies.current.forEach((api) => {
