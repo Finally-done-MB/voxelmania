@@ -55,7 +55,11 @@ export function ControlPanel() {
   } = useAppStore();
   
   const isMobile = useIsMobile();
-  const [activeCategory, setActiveCategory] = useState<GeneratorCategory>('robot');
+  // Load last used category from localStorage, default to 'robot'
+  const [activeCategory, setActiveCategory] = useState<GeneratorCategory>(() => {
+    const saved = localStorage.getItem('voxel_forge_category');
+    return (saved as GeneratorCategory) || 'robot';
+  });
   // Start closed on mobile, open on desktop
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -74,6 +78,11 @@ export function ControlPanel() {
     }
     // Don't auto-close on mobile - let user control it via the menu button
   }, [isMobile, isOpen]);
+
+  // Save active category to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('voxel_forge_category', activeCategory);
+  }, [activeCategory]);
   const [activeTab, setActiveTab] = useState<'saved' | 'favorites' | 'stats'>('saved');
   const [seedInput, setSeedInput] = useState('');
   const [copiedSeed, setCopiedSeed] = useState(false);
