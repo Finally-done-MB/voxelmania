@@ -8,12 +8,14 @@ interface AppState {
   scrapMode: 'explode' | 'crumble' | null;
   isMuted: boolean;
   isSfxMuted: boolean;
+  isExporting: boolean; // Hide floor grid during export
   
   setCurrentObject: (object: VoxelObjectData) => void;
   toggleAutoRotation: () => void;
   setScrapped: (scrapped: boolean, mode?: 'explode' | 'crumble') => void;
   toggleMute: () => void;
   toggleSfxMute: () => void;
+  setExporting: (exporting: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -23,6 +25,7 @@ export const useAppStore = create<AppState>((set) => ({
   scrapMode: null,
   isMuted: false, // Music ON by default
   isSfxMuted: false, // SFX ON by default
+  isExporting: false,
 
   setCurrentObject: (object) => set({ 
     currentObject: object, 
@@ -41,4 +44,5 @@ export const useAppStore = create<AppState>((set) => ({
 
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
   toggleSfxMute: () => set((state) => ({ isSfxMuted: !state.isSfxMuted })),
+  setExporting: (exporting) => set({ isExporting: exporting }),
 }));

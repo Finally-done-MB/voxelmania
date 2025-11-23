@@ -1,6 +1,9 @@
 import { Environment, SoftShadows } from '@react-three/drei';
+import { useAppStore } from '../store/useAppStore';
 
 export function StudioEnvironment() {
+  const { isExporting } = useAppStore();
+  
   return (
     <>
       <ambientLight intensity={0.4} />
@@ -41,7 +44,10 @@ export function StudioEnvironment() {
         <shadowMaterial transparent opacity={0.2} />
       </mesh>
       
-       <gridHelper args={[100, 100, 0x444444, 0x222222]} position={[0, -4.01, 0]} />
+      {/* Hide grid during export */}
+      {!isExporting && (
+        <gridHelper args={[100, 100, 0x444444, 0x222222]} position={[0, -4.01, 0]} />
+      )}
     </>
   );
 }

@@ -1,4 +1,8 @@
+import { useAppStore } from '../store/useAppStore';
+
 export function exportImage() {
+  const { setExporting } = useAppStore.getState();
+  
   // Get the canvas element from the DOM
   const canvas = document.querySelector('canvas') as HTMLCanvasElement;
   if (!canvas) {
@@ -6,7 +10,10 @@ export function exportImage() {
     return;
   }
 
-  // Wait for next frame to ensure everything is rendered
+  // Hide floor grid and wait for render
+  setExporting(true);
+  
+  // Wait for next frame to ensure everything is rendered (grid hidden)
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       try {
@@ -16,6 +23,7 @@ export function exportImage() {
         if (!dataURL || dataURL === 'data:,') {
           console.error('Failed to capture canvas - canvas may be empty');
           alert('Failed to export image. Please try again.');
+          setExporting(false); // Restore grid
           return;
         }
 
@@ -26,9 +34,13 @@ export function exportImage() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        // Restore grid after export
+        setExporting(false);
       } catch (error) {
         console.error('Error exporting image:', error);
         alert('Failed to export image. Please try again.');
+        setExporting(false); // Restore grid on error
       }
     });
   });
