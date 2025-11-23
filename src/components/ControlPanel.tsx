@@ -3,15 +3,17 @@ import {
   Bot, Rocket, Cat, Skull, 
   Hammer, RefreshCw, Play, Pause, Save, 
   Download, FolderOpen, Menu, X,
-  Volume2, VolumeX, Trash2, Zap
+  Volume2, VolumeX, Trash2, Zap, Star, Image, BarChart3
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { generateRobot } from '../generators/robotGenerator';
 import { generateSpaceship } from '../generators/spaceshipGenerator';
-import { generateAnimal, generateWolf } from '../generators/animalGenerator';
+import { generateAnimal } from '../generators/animalGenerator';
 import { generateMonster } from '../generators/monsterGenerator';
 import type { GeneratorCategory, VoxelObjectData } from '../types';
-import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint, deleteBlueprint } from '../utils/storage';
+import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint, deleteBlueprint, toggleFavorite, getFavoriteBlueprints } from '../utils/storage';
+import { exportImage } from '../utils/imageExport';
+import { getStats, trackCreation } from '../utils/stats';
 import { 
   resumeAudio, startAmbientMusic, stopAmbientMusic, 
   playExplosionSound, playCrumbleSound 
@@ -36,8 +38,7 @@ export function ControlPanel() {
   const [activeCategory, setActiveCategory] = useState<GeneratorCategory>('robot');
   const [isOpen, setIsOpen] = useState(true);
   const [savedItems, setSavedItems] = useState<VoxelObjectData[]>([]);
-  const [presets, setPresets] = useState<VoxelObjectData[]>([]);
-  const [activeTab, setActiveTab] = useState<'presets' | 'saved'>('presets');
+  const [activeTab, setActiveTab] = useState<'saved' | 'favorites' | 'stats'>('saved');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle ambient music state
@@ -49,41 +50,33 @@ export function ControlPanel() {
     }
   }, [isMuted]);
 
-  // Generate initial object and presets
+  // Generate initial object
   useEffect(() => {
     handleGenerate();
     setSavedItems(getSavedBlueprints());
-    
-    // Generate presets
-    const presetItems = [
-       { ...generateRobot(), name: 'Mech Alpha' },
-       { ...generateRobot(), name: 'Scout Bot' },
-       { ...generateSpaceship(), name: 'Star Fighter' },
-       { ...generateSpaceship(), name: 'Cargo Hauler' },
-       generateWolf(), // Uses dedicated wolf generator
-       { ...generateMonster(), name: 'Slime Blob' },
-    ];
-    setPresets(presetItems);
   }, []);
 
   const handleGenerate = () => {
     resumeAudio(); // Ensure audio context is ready on user interaction
+    let newObject: VoxelObjectData;
     switch (activeCategory) {
       case 'robot':
-        setCurrentObject(generateRobot());
+        newObject = generateRobot();
         break;
       case 'spaceship':
-        setCurrentObject(generateSpaceship());
+        newObject = generateSpaceship();
         break;
       case 'animal':
-        setCurrentObject(generateAnimal());
+        newObject = generateAnimal();
         break;
       case 'monster':
-        setCurrentObject(generateMonster());
+        newObject = generateMonster();
         break;
       default:
-        setCurrentObject(generateRobot());
+        newObject = generateRobot();
     }
+    setCurrentObject(newObject);
+    trackCreation(newObject.category);
   };
 
   const handleScrap = (mode: 'explode' | 'crumble') => {
@@ -148,6 +141,22 @@ export function ControlPanel() {
       setSavedItems(getSavedBlueprints());
     }
   };
+
+  const handleToggleFavorite = (e: React.MouseEvent, blueprintId: string) => {
+    e.stopPropagation(); // Prevent triggering the load action
+    toggleFavorite(blueprintId);
+    setSavedItems(getSavedBlueprints());
+  };
+
+  const handleExportImage = () => {
+    if (currentObject) {
+      exportImage();
+    }
+  };
+
+  const stats = getStats();
+  const favoriteItems = getFavoriteBlueprints();
+  const displayItems = activeTab === 'favorites' ? favoriteItems : savedItems;
 
   return (
     <>
@@ -268,41 +277,98 @@ export function ControlPanel() {
              <Save size={16} /> Save
            </button>
            <button 
+             onClick={handleExportImage}
+             className="flex items-center justify-center gap-2 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-sm"
+             title="Export as Image"
+            >
+             <Image size={16} /> Image
+           </button>
+           <button 
              onClick={handleExport}
              className="flex items-center justify-center gap-2 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-sm"
              title="Download JSON"
             >
-             <Download size={16} /> Export
+             <Download size={16} /> JSON
            </button>
-             <button 
+           <button 
              onClick={handleImportClick}
-             className="col-span-2 flex items-center justify-center gap-2 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-sm"
+             className="flex items-center justify-center gap-2 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-sm"
              title="Load JSON"
             >
-             <FolderOpen size={16} /> Import File
+             <FolderOpen size={16} /> Import
            </button>
         </div>
 
-        {/* Saved Items & Presets */}
+        {/* Saved Items & Stats */}
         <div className="flex-1 flex flex-col mt-4 border-t border-gray-700 pt-4 min-h-0">
             <div className="flex gap-4 mb-2">
-               <button 
-                  onClick={() => setActiveTab('presets')}
-                  className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'presets' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-               >
-                 Presets
-               </button>
                <button 
                   onClick={() => setActiveTab('saved')}
                   className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'saved' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
                >
                  My Blueprints
                </button>
+               <button 
+                  onClick={() => setActiveTab('favorites')}
+                  className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'favorites' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+               >
+                 Favorites
+               </button>
+               <button 
+                  onClick={() => setActiveTab('stats')}
+                  className={`text-xs font-bold uppercase pb-1 border-b-2 transition-colors ${activeTab === 'stats' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+               >
+                 <BarChart3 size={12} className="inline" />
+               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+            {activeTab === 'stats' ? (
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-4">
+                  <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                    <h3 className="text-sm font-bold text-gray-300 mb-3">Creation Stats</h3>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Total Creations:</span>
+                        <span className="text-white font-bold">{stats.totalCreations}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Robots:</span>
+                        <span className="text-white">{stats.byCategory.robot || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Spaceships:</span>
+                        <span className="text-white">{stats.byCategory.spaceship || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Animals:</span>
+                        <span className="text-white">{stats.byCategory.animal || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Monsters:</span>
+                        <span className="text-white">{stats.byCategory.monster || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                    <h3 className="text-sm font-bold text-gray-300 mb-3">Collection</h3>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Saved Blueprints:</span>
+                        <span className="text-white font-bold">{savedItems.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Favorites:</span>
+                        <span className="text-white font-bold">{favoriteItems.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                 <div className="flex flex-col gap-2">
-                    {(activeTab === 'presets' ? presets : savedItems).map((item, idx) => (
+                    {displayItems.map((item, idx) => (
                         <div
                             key={item.id + idx}
                             className="flex items-center gap-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors text-sm border border-gray-700 hover:border-gray-500 group"
@@ -317,22 +383,32 @@ export function ControlPanel() {
                                 </div>
                                 <Play size={14} className="opacity-0 group-hover:opacity-100 text-blue-400 transition-opacity" />
                             </button>
-                            {activeTab === 'saved' && (
-                                <button
-                                    onClick={(e) => handleDelete(e, item.id)}
-                                    className="p-2 mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Delete blueprint"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            )}
+                            <button
+                                onClick={(e) => handleToggleFavorite(e, item.id)}
+                                className={`p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/20 rounded-md transition-colors ${
+                                  item.isFavorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
+                                }`}
+                                title={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                            >
+                                <Star size={14} className={item.isFavorite ? 'fill-yellow-400' : ''} />
+                            </button>
+                            <button
+                                onClick={(e) => handleDelete(e, item.id)}
+                                className="p-2 mr-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                title="Delete blueprint"
+                            >
+                                <Trash2 size={14} />
+                            </button>
                         </div>
                     ))}
-                    {activeTab === 'saved' && savedItems.length === 0 && (
-                        <div className="text-center text-gray-500 text-xs py-4 italic">No saved blueprints yet.</div>
+                    {displayItems.length === 0 && (
+                        <div className="text-center text-gray-500 text-xs py-4 italic">
+                          {activeTab === 'favorites' ? 'No favorites yet. Star a blueprint to add it here.' : 'No saved blueprints yet.'}
+                        </div>
                     )}
                 </div>
             </div>
+            )}
         </div>
 
       </div>

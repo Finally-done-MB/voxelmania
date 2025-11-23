@@ -164,7 +164,7 @@ function App() {
           shadows 
           camera={{ position: [20, 20, 20], fov: 40 }} 
           dpr={[1, 2]}
-          gl={{ antialias: true }}
+          gl={{ antialias: true, preserveDrawingBuffer: true }}
           resize={{ scroll: false }}
         >
           <color attach="background" args={['#202025']} />

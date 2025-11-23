@@ -12,6 +12,7 @@ export interface VoxelObjectData {
   category: 'robot' | 'spaceship' | 'animal' | 'monster';
   voxels: Voxel[];
   createdAt: number;
+  isFavorite?: boolean; // Optional for backward compatibility
 }
 
 export type GeneratorCategory = VoxelObjectData['category'];

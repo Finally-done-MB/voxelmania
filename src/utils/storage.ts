@@ -19,6 +19,21 @@ export function deleteBlueprint(blueprintId: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
+export function toggleFavorite(blueprintId: string) {
+  const existing = getSavedBlueprints();
+  const updated = existing.map(item => 
+    item.id === blueprintId 
+      ? { ...item, isFavorite: !item.isFavorite }
+      : item
+  );
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+export function getFavoriteBlueprints(): VoxelObjectData[] {
+  return getSavedBlueprints().filter(item => item.isFavorite);
+}
+
 export function exportBlueprint(object: VoxelObjectData) {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(object));
   const downloadAnchorNode = document.createElement('a');
