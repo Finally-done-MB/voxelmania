@@ -73,8 +73,8 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
           direction.normalize();
           
           // EXPLOSION: Set velocity directly for immediate effect
-          // Velocity in m/s - VERY HIGH for dramatic explosion
-          const baseSpeed = 80 + Math.random() * 40; // 80-120 m/s (very fast!)
+          // Velocity in m/s - Reduced to 50% of original power
+          const baseSpeed = 40 + Math.random() * 20; // 40-60 m/s (50% of original 80-120)
           const distanceFactor = Math.max(0.6, 1 - distance / 20);
           const speed = baseSpeed * distanceFactor;
           
@@ -83,12 +83,12 @@ export function DebrisField({ voxels, mode }: DebrisFieldProps) {
           // Set velocity directly - this is more immediate than impulse
           api.setLinvel({ x: velocity.x, y: velocity.y, z: velocity.z }, true);
           
-          // Violent spinning
+          // Reduced spinning (50% of original)
           api.setAngvel(
             { 
-              x: (Math.random() - 0.5) * 10, 
-              y: (Math.random() - 0.5) * 10, 
-              z: (Math.random() - 0.5) * 10 
+              x: (Math.random() - 0.5) * 5, 
+              y: (Math.random() - 0.5) * 5, 
+              z: (Math.random() - 0.5) * 5 
             },
             true
           );
