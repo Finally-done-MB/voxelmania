@@ -2,7 +2,8 @@ import { useRef, useState, useEffect } from 'react';
 import { 
   Bot, Rocket, Cat, Skull, 
   Hammer, RefreshCw, Play, Pause, Save, 
-  Download, FolderOpen, Menu, X 
+  Download, FolderOpen, Menu, X,
+  Volume2, VolumeX
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { generateRobot } from '../generators/robotGenerator';
@@ -11,6 +12,10 @@ import { generateAnimal } from '../generators/animalGenerator';
 import { generateMonster } from '../generators/monsterGenerator';
 import type { GeneratorCategory, VoxelObjectData } from '../types';
 import { saveBlueprint, getSavedBlueprints, exportBlueprint, importBlueprint } from '../utils/storage';
+import { 
+  resumeAudio, startAmbientMusic, stopAmbientMusic, 
+  playExplosionSound, playCrumbleSound 
+} from '../utils/audio';
 
 const CATEGORIES: { id: GeneratorCategory; icon: any; label: string }[] = [
   { id: 'robot', icon: Bot, label: 'Robots' },
@@ -23,7 +28,8 @@ export function ControlPanel() {
   const { 
     currentObject, setCurrentObject, 
     isAutoRotating, toggleAutoRotation,
-    setScrapped, isScrapped
+    setScrapped, isScrapped,
+    isMuted, toggleMute
   } = useAppStore();
   
   const [activeCategory, setActiveCategory] = useState<GeneratorCategory>('robot');
@@ -32,6 +38,15 @@ export function ControlPanel() {
   const [presets, setPresets] = useState<VoxelObjectData[]>([]);
   const [activeTab, setActiveTab] = useState<'presets' | 'saved'>('presets');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle ambient music state
+  useEffect(() => {
+    if (isMuted) {
+      stopAmbientMusic();
+    } else {
+      resumeAudio().then(() => startAmbientMusic());
+    }
+  }, [isMuted]);
 
   // Generate initial object and presets
   useEffect(() => {
@@ -51,6 +66,7 @@ export function ControlPanel() {
   }, []);
 
   const handleGenerate = () => {
+    resumeAudio(); // Ensure audio context is ready on user interaction
     switch (activeCategory) {
       case 'robot':
         setCurrentObject(generateRobot());
@@ -71,10 +87,19 @@ export function ControlPanel() {
 
   const handleScrap = (mode: 'explode' | 'crumble') => {
      if (currentObject && !isScrapped) {
+       if (!isMuted) {
+         if (mode === 'explode') playExplosionSound();
+         else playCrumbleSound();
+       }
        setScrapped(true, mode);
      }
   };
   
+  const handleToggleMute = () => {
+    resumeAudio();
+    toggleMute();
+  };
+
   const handleSave = () => {
     if (currentObject) {
       saveBlueprint(currentObject);
@@ -200,6 +225,14 @@ export function ControlPanel() {
           >
             {isAutoRotating ? <Pause size={18} /> : <Play size={18} />}
             <span className="text-sm">{isAutoRotating ? 'Pause' : 'Rotate'}</span>
+          </button>
+          
+          <button 
+            onClick={handleToggleMute}
+            className={`p-2 rounded-md transition-colors ${isMuted ? 'text-gray-500 hover:bg-gray-700' : 'text-blue-400 bg-blue-900/30 hover:bg-blue-900/50'}`}
+            title={isMuted ? "Unmute Audio" : "Mute Audio"}
+          >
+            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
         </div>
 

@@ -6,10 +6,12 @@ interface AppState {
   isAutoRotating: boolean;
   isScrapped: boolean; // New state for physics
   scrapMode: 'explode' | 'crumble' | null;
+  isMuted: boolean;
   
   setCurrentObject: (object: VoxelObjectData) => void;
   toggleAutoRotation: () => void;
   setScrapped: (scrapped: boolean, mode?: 'explode' | 'crumble') => void;
+  toggleMute: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -17,6 +19,7 @@ export const useAppStore = create<AppState>((set) => ({
   isAutoRotating: true,
   isScrapped: false,
   scrapMode: null,
+  isMuted: true, // Default to muted to respect autoplay policies
 
   setCurrentObject: (object) => set({ 
     currentObject: object, 
@@ -32,4 +35,6 @@ export const useAppStore = create<AppState>((set) => ({
     scrapMode: mode || null,
     isAutoRotating: !scrapped // Stop rotation when scrapped
   }),
+
+  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 }));
